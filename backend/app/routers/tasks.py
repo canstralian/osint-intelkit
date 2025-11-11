@@ -1,13 +1,14 @@
 """Task orchestration endpoints for OSINT collection and enrichment."""
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
-import logging
+import structlog
 
 from ..workers.collector import collect_domain
 from ..workers.vt_enricher import vt_enrich_domain
+from ..security import DomainIn, normalize_domain
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -17,16 +18,34 @@ class CollectionRequest(BaseModel):
     source: str = Field(default="api", description="Source identifier for provenance")
     enrich: bool = Field(default=True, description="Whether to run enrichment after collection")
 
+    @field_validator("domain")
+    @classmethod
+    def validate_domain(cls, v):
+        """Validate and normalize domain input."""
+        return DomainIn(domain=v).domain
+
 class EnrichmentRequest(BaseModel):
     """Request model for domain enrichment."""
     domain: str = Field(..., description="Domain name to enrich")
     sources: List[str] = Field(default=["virustotal"], description="Enrichment sources to use")
+
+    @field_validator("domain")
+    @classmethod
+    def validate_domain(cls, v):
+        """Validate and normalize domain input."""
+        return DomainIn(domain=v).domain
 
 class BulkCollectionRequest(BaseModel):
     """Request model for bulk domain collection."""
     domains: List[str] = Field(..., description="List of domains to collect")
     source: str = Field(default="bulk_api", description="Source identifier")
     enrich: bool = Field(default=True, description="Whether to run enrichment")
+
+    @field_validator("domains")
+    @classmethod
+    def validate_domains(cls, v):
+        """Validate and normalize all domain inputs."""
+        return [DomainIn(domain=d).domain for d in v]
 
 @router.post("/collect")
 async def start_collection(request: CollectionRequest, background_tasks: BackgroundTasks):
@@ -43,7 +62,7 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
     Returns:
         Task status and domain information
     """
-    logger.info(f"Starting collection for domain: {request.domain}")
+    log.info("collection_request", domain=request.domain, source=request.source, enrich=request.enrich)
 
     # Add collection task to background
     background_tasks.add_task(collect_domain, request.domain, request.source)
@@ -72,7 +91,7 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
     Returns:
         Enrichment task status
     """
-    logger.info(f"Starting enrichment for domain: {request.domain} with sources: {request.sources}")
+    log.info("enrichment_request", domain=request.domain, sources=request.sources)
 
     # Add enrichment tasks based on requested sources
     if "virustotal" in request.sources:
@@ -109,7 +128,7 @@ async def bulk_collection(request: BulkCollectionRequest, background_tasks: Back
             detail="Maximum 100 domains per bulk request. Use multiple requests for larger sets."
         )
 
-    logger.info(f"Starting bulk collection for {len(request.domains)} domains")
+    log.info("bulk_collection_request", domain_count=len(request.domains), source=request.source, enrich=request.enrich)
 
     for domain in request.domains:
         background_tasks.add_task(collect_domain, domain, request.source)

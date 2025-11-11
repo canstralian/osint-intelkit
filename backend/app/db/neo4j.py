@@ -1,7 +1,10 @@
 """Neo4j graph database connection and operations."""
 from neo4j import GraphDatabase, AsyncGraphDatabase
 import os
+import structlog
 from typing import Optional, Dict, List
+
+log = structlog.get_logger()
 
 class Neo4jConnection:
     """Neo4j database connection manager."""
@@ -39,18 +42,22 @@ async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
         domain: Domain name
         metadata: Optional metadata to attach to the node
     """
-    driver = get_driver()
-    with driver.session() as session:
-        session.run(
-            """
-            MERGE (d:Domain {name: $domain})
-            ON CREATE SET d.created = timestamp(), d.metadata = $metadata
-            ON MATCH SET d.last_seen = timestamp(), d.metadata = $metadata
-            RETURN d
-            """,
-            domain=domain,
-            metadata=metadata or {}
-        )
+    try:
+        driver = get_driver()
+        with driver.session() as session:
+            session.run(
+                """
+                MERGE (d:Domain {name: $domain})
+                ON CREATE SET d.created = timestamp(), d.metadata = $metadata
+                ON MATCH SET d.last_seen = timestamp(), d.metadata = $metadata
+                RETURN d
+                """,
+                domain=domain,
+                metadata=metadata or {}
+            )
+            log.info("neo4j_merge_domain", domain=domain)
+    except Exception as e:
+        log.warning("neo4j_error", domain=domain, operation="link_domain", error=str(e))
 
 async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") -> None:
     """

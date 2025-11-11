@@ -6,14 +6,15 @@ about domains. All operations are non-intrusive and use public data sources.
 """
 import asyncio
 import aiohttp
-import logging
+import structlog
 from typing import Optional, Dict
 from datetime import datetime
 
 from ..db.postgres import save_domain
 from ..db.neo4j import link_domain
+from .vt_enricher import vt_enrich_domain
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 async def collect_domain(domain: str, source: str = "collector") -> Dict:
     """
@@ -34,7 +35,7 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
 
     IMPORTANT: Only use for authorized targets
     """
-    logger.info(f"[Collector] Starting passive collection for: {domain}")
+    log.info("collector_start", domain=domain, source=source)
 
     try:
         # Save domain to PostgreSQL with provenance
@@ -49,14 +50,10 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
             "collected_at": datetime.utcnow().isoformat()
         })
 
-        # Placeholder for additional passive collection
-        # In production, add:
-        # - Certificate transparency lookups (crt.sh)
-        # - Passive DNS queries
-        # - Public WHOIS lookups
-        # - Subdomain enumeration from public sources
+        log.info("collector_recorded", domain=domain)
 
-        logger.info(f"[Collector] Successfully collected: {domain}")
+        # Kick one enrichment here; bulk runs come from Prefect
+        await vt_enrich_domain(domain)
 
         return {
             "status": "success",
@@ -67,7 +64,7 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
         }
 
     except Exception as e:
-        logger.error(f"[Collector] Error collecting {domain}: {e}")
+        log.exception("collector_error", domain=domain, error=str(e))
         return {
             "status": "error",
             "domain": domain,
@@ -93,21 +90,21 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     data = await response.json()
-                    logger.info(f"[CRT.sh] Found {len(data)} certificates for {domain}")
+                    log.info("crtsh_success", domain=domain, cert_count=len(data))
                     return {
                         "source": "crt.sh",
                         "certificate_count": len(data),
                         "certificates": data[:100]  # Limit to avoid large payloads
                     }
                 else:
-                    logger.warning(f"[CRT.sh] HTTP {response.status} for {domain}")
+                    log.warning("crtsh_http_error", domain=domain, status=response.status)
                     return None
 
     except asyncio.TimeoutError:
-        logger.warning(f"[CRT.sh] Timeout querying {domain}")
+        log.warning("crtsh_timeout", domain=domain)
         return None
     except Exception as e:
-        logger.error(f"[CRT.sh] Error querying {domain}: {e}")
+        log.error("crtsh_error", domain=domain, error=str(e))
         return None
 
 async def collect_subdomains_passive(domain: str) -> Dict:
@@ -130,7 +127,7 @@ async def collect_subdomains_passive(domain: str) -> Dict:
     Returns:
         Subdomain collection results
     """
-    logger.info(f"[Passive Subdomain] Collecting for {domain}")
+    log.info("passive_subdomain_start", domain=domain)
 
     subdomains = set()
 
@@ -145,7 +142,7 @@ async def collect_subdomains_passive(domain: str) -> Dict:
                 if name and domain in name:
                     subdomains.add(name)
 
-    logger.info(f"[Passive Subdomain] Found {len(subdomains)} subdomains for {domain}")
+    log.info("passive_subdomain_complete", domain=domain, subdomain_count=len(subdomains))
 
     return {
         "domain": domain,
@@ -162,7 +159,7 @@ async def worker_main():
     This can be run as a separate service that processes domains
     from a queue or database.
     """
-    logger.info("[Collector Worker] Starting up")
+    log.info("collector_worker_start")
 
     # Example: Process a queue of domains
     # In production, integrate with message queue (RabbitMQ, Redis, etc.)
@@ -175,10 +172,10 @@ async def worker_main():
             await asyncio.sleep(60)  # Wait between iterations
 
         except KeyboardInterrupt:
-            logger.info("[Collector Worker] Shutting down")
+            log.info("collector_worker_shutdown")
             break
         except Exception as e:
-            logger.error(f"[Collector Worker] Error: {e}")
+            log.error("collector_worker_error", error=str(e))
             await asyncio.sleep(5)
 
 if __name__ == "__main__":
