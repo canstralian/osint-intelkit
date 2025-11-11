@@ -1,6 +1,5 @@
 """Tests for VirusTotal enricher with mocked API responses."""
 import pytest
-import asyncio
 from app.workers import vt_enricher
 
 @pytest.mark.asyncio
