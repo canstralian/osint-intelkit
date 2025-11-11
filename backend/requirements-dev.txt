@@ -4,3 +4,5 @@ pytest-mock
 httpx
 asyncpg
 faker
+prefect
+neo4j
