@@ -2,7 +2,5 @@ pytest
 pytest-asyncio
 pytest-mock
 httpx
-asyncpg
 faker
 prefect
-neo4j
