@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+  api:
+    build: ./backend
+    container_name: osint_api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - neo4j
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    container_name: osint_worker
+    env_file: .env
+    depends_on:
+      - postgres
+      - neo4j
+    volumes:
+      - ./backend:/app
+    command: python -m app.workers.collector
+    restart: unless-stopped
+
+  scheduler:
+    build: ./backend
+    container_name: osint_scheduler
+    env_file: .env
+    depends_on:
+      - postgres
+      - neo4j
+    volumes:
+      - ./backend:/app
+    command: python -m app.flows.vt_flow
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: osint_postgres
+    environment:
+      POSTGRES_DB: osintdb
+      POSTGRES_USER: osint
+      POSTGRES_PASSWORD: osintpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U osint"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5
+    container_name: osint_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/testpass
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4jdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p testpass 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  neo4jdata:
