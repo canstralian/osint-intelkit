@@ -1,6 +1,5 @@
 pytest
 pytest-asyncio
 pytest-mock
-httpx
 faker
 prefect
