@@ -1,5 +1,4 @@
-"""
-Prefect deployment registration for scheduled OSINT flows.
+"""Prefect deployment registration for scheduled OSINT flows.
 
 This module creates and registers Prefect deployments with automatic scheduling.
 The deployment will run the OSINT collection and enrichment flow at regular intervals.
@@ -32,8 +31,7 @@ SCHEDULE_TIMEZONE = os.getenv("OSINT_SCHEDULE_TIMEZONE", "UTC")
 
 
 def create_deployment():
-    """
-    Create and register a Prefect deployment for the OSINT flow.
+    """Create and register a Prefect deployment for the OSINT flow.
 
     This deployment will automatically run the flow according to the schedule.
 
@@ -74,8 +72,7 @@ def create_deployment():
 
 
 def deploy():
-    """
-    Deploy the OSINT flow to Prefect server.
+    """Deploy the OSINT flow to Prefect server.
 
     This function:
     1. Creates the deployment configuration
@@ -129,8 +126,7 @@ def deploy():
 
 
 def create_additional_deployments():
-    """
-    Create additional deployments for different schedules or configurations.
+    """Create additional deployments for different schedules or configurations.
 
     Examples:
     - Hourly quick scans

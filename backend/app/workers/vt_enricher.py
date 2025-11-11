@@ -1,7 +1,6 @@
-"""
-VirusTotal enricher with resilient error handling, backoff, and cache fallback.
+"""VirusTotal enricher with resilient error handling, backoff, and cache fallback.
 
-IMPORTANT:
+Important:
 - Requires valid VirusTotal API key
 - Respects rate limits with exponential backoff
 - Use only for authorized defensive security purposes
@@ -10,7 +9,6 @@ IMPORTANT:
 import asyncio
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional
 
 import aiohttp
 import structlog
@@ -64,9 +62,8 @@ async def vt_call(session, domain):
     return await _fetch(session, url)
 
 
-async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Optional[Dict]:
-    """
-    Enrich a domain with VirusTotal data.
+async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> dict | None:
+    """Enrich a domain with VirusTotal data.
 
     Features:
     - Cache checking with configurable TTL
@@ -153,9 +150,8 @@ async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Option
             return None
 
 
-async def vt_enrich_ip(ip: str) -> Optional[Dict]:
-    """
-    Fetch threat intelligence for an IP address from VirusTotal.
+async def vt_enrich_ip(ip: str) -> dict | None:
+    """Fetch threat intelligence for an IP address from VirusTotal.
 
     Args:
         ip: IP address to enrich

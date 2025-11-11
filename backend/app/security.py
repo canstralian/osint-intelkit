@@ -14,8 +14,7 @@ argon = PasswordHasher(time_cost=2, memory_cost=51200, parallelism=2)
 
 
 def normalize_domain(value: str) -> str:
-    """
-    Normalize domain name for consistent hashing and comparison.
+    """Normalize domain name for consistent hashing and comparison.
     - Lowercase
     - IDNA encoding (punycode) for international domains
     """
@@ -28,8 +27,7 @@ def normalize_domain(value: str) -> str:
 
 
 def pseudo_id(value: str) -> str:
-    """
-    Stable pseudonymous ID via HMAC(pepper, normalized_value).
+    """Stable pseudonymous ID via HMAC(pepper, normalized_value).
     Allows correlation across runs without storing PII/plaintext.
     """
     assert PEPPER, "PEPPER_HEX must be set in environment"
@@ -38,8 +36,7 @@ def pseudo_id(value: str) -> str:
 
 
 def salted_hash(value: str) -> str:
-    """
-    Strong salted hash for at-rest storage (Argon2id).
+    """Strong salted hash for at-rest storage (Argon2id).
     Not reversible; use for integrity verification only.
     """
     return argon.hash(value)

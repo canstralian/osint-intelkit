@@ -1,7 +1,5 @@
 """Task orchestration endpoints for OSINT collection and enrichment."""
 
-from typing import List
-
 import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -33,7 +31,7 @@ class EnrichmentRequest(BaseModel):
     """Request model for domain enrichment."""
 
     domain: str = Field(..., description="Domain name to enrich")
-    sources: List[str] = Field(default=["virustotal"], description="Enrichment sources to use")
+    sources: list[str] = Field(default=["virustotal"], description="Enrichment sources to use")
 
     @field_validator("domain")
     @classmethod
@@ -45,7 +43,7 @@ class EnrichmentRequest(BaseModel):
 class BulkCollectionRequest(BaseModel):
     """Request model for bulk domain collection."""
 
-    domains: List[str] = Field(..., description="List of domains to collect")
+    domains: list[str] = Field(..., description="List of domains to collect")
     source: str = Field(default="bulk_api", description="Source identifier")
     enrich: bool = Field(default=True, description="Whether to run enrichment")
 
@@ -58,8 +56,7 @@ class BulkCollectionRequest(BaseModel):
 
 @router.post("/collect")
 async def start_collection(request: CollectionRequest, background_tasks: BackgroundTasks):
-    """
-    Start OSINT collection for a domain.
+    """Start OSINT collection for a domain.
 
     This endpoint initiates passive collection of publicly available information
     about a domain. Use only for authorized targets.
@@ -93,8 +90,7 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
 
 @router.post("/enrich")
 async def start_enrichment(request: EnrichmentRequest, background_tasks: BackgroundTasks):
-    """
-    Start enrichment for a domain using threat intelligence sources.
+    """Start enrichment for a domain using threat intelligence sources.
 
     Args:
         request: Enrichment request parameters
@@ -123,8 +119,7 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
 
 @router.post("/collect/bulk")
 async def bulk_collection(request: BulkCollectionRequest, background_tasks: BackgroundTasks):
-    """
-    Start OSINT collection for multiple domains.
+    """Start OSINT collection for multiple domains.
 
     IMPORTANT: Use rate limiting and ensure all targets are authorized.
 
@@ -164,8 +159,7 @@ async def bulk_collection(request: BulkCollectionRequest, background_tasks: Back
 
 @router.get("/status")
 async def get_task_status():
-    """
-    Get status of running tasks.
+    """Get status of running tasks.
 
     Returns:
         Task queue status and statistics

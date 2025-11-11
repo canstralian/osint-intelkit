@@ -18,17 +18,20 @@ setup-hooks: ## Install pre-commit hooks
 	pre-commit install --hook-type commit-msg
 	@echo "✅ Pre-commit hooks installed successfully"
 
-format: ## Format code with black and isort
-	@echo "🎨 Formatting code with black..."
-	black backend/app
-	@echo "📦 Sorting imports with isort..."
-	isort backend/app
+format: ## Format code with ruff
+	@echo "🎨 Formatting code with ruff..."
+	ruff format backend/app
 	@echo "✅ Code formatting complete"
 
-lint: ## Run flake8 linting
-	@echo "🔍 Running flake8 linter..."
-	flake8 backend/app
+lint: ## Run ruff linting
+	@echo "🔍 Running ruff linter..."
+	ruff check backend/app
 	@echo "✅ Linting complete"
+
+lint-fix: ## Run ruff linting with auto-fix
+	@echo "🔧 Running ruff linter with auto-fix..."
+	ruff check backend/app --fix
+	@echo "✅ Linting and fixes complete"
 
 type-check: ## Run mypy type checking
 	@echo "🔎 Running mypy type checker..."
@@ -50,7 +53,7 @@ test-cov: ## Run tests with coverage report
 	PEPPER_HEX=$$(openssl rand -hex 32) PYTHONPATH=backend pytest --cov=backend/app --cov-report=html --cov-report=term
 	@echo "✅ Coverage report generated in htmlcov/"
 
-check-all: format lint type-check security ## Run all code quality checks
+check-all: lint-fix format type-check security ## Run all code quality checks
 	@echo "✅ All checks passed!"
 
 clean: ## Clean up generated files

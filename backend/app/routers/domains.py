@@ -1,7 +1,6 @@
 """Domain data retrieval endpoints."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -14,8 +13,7 @@ router = APIRouter()
 
 @router.get("/{domain}/enrichments")
 async def get_enrichments(domain: str):
-    """
-    Retrieve all enrichment data for a domain.
+    """Retrieve all enrichment data for a domain.
 
     Args:
         domain: Domain name
@@ -42,11 +40,10 @@ async def get_enrichments(domain: str):
 
 @router.get("/")
 async def list_domains(
-    source: Optional[str] = Query(None, description="Filter by source"),
+    source: str | None = Query(None, description="Filter by source"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
 ):
-    """
-    List domains in the database.
+    """List domains in the database.
 
     Args:
         source: Optional source filter
@@ -71,8 +68,7 @@ async def list_domains(
 
 @router.get("/{domain}/summary")
 async def get_domain_summary(domain: str):
-    """
-    Get a comprehensive summary of a domain's intelligence data.
+    """Get a comprehensive summary of a domain's intelligence data.
 
     Args:
         domain: Domain name

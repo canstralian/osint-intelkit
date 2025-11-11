@@ -1,5 +1,4 @@
-"""
-Prefect flow orchestration for scheduled OSINT collection and enrichment.
+"""Prefect flow orchestration for scheduled OSINT collection and enrichment.
 
 This module defines Prefect flows that coordinate:
 - Domain collection from seed lists
@@ -16,7 +15,6 @@ Scheduling options:
 import asyncio
 import os
 from datetime import datetime, timedelta
-from typing import List
 
 from prefect import flow, task
 from prefect.tasks import task_input_hash
@@ -40,9 +38,8 @@ DEFAULT_SEED_DOMAINS = [
 ]
 
 
-def get_seed_domains() -> List[str]:
-    """
-    Get seed domains from environment variable or default list.
+def get_seed_domains() -> list[str]:
+    """Get seed domains from environment variable or default list.
     Validates and normalizes all domains.
 
     Returns:
@@ -79,9 +76,8 @@ def get_seed_domains() -> List[str]:
     cache_key_fn=task_input_hash,
     cache_expiration=timedelta(hours=1),
 )
-async def collect_seed_domains(domains: List[str]) -> List[str]:
-    """
-    Task: Collect domain intelligence from seed list.
+async def collect_seed_domains(domains: list[str]) -> list[str]:
+    """Task: Collect domain intelligence from seed list.
 
     Args:
         domains: List of domain names to collect
@@ -111,9 +107,8 @@ async def collect_seed_domains(domains: List[str]) -> List[str]:
     retries=3,
     retry_delay_seconds=120,
 )
-async def vt_enrich_all(domains: List[str]) -> List[dict]:
-    """
-    Task: Enrich all domains with VirusTotal threat intelligence.
+async def vt_enrich_all(domains: list[str]) -> list[dict]:
+    """Task: Enrich all domains with VirusTotal threat intelligence.
 
     Args:
         domains: List of domain names
@@ -151,9 +146,8 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
     retries=2,
     retry_delay_seconds=60,
 )
-async def collect_subdomains_task(domains: List[str]) -> dict:
-    """
-    Task: Collect subdomains for all seed domains.
+async def collect_subdomains_task(domains: list[str]) -> dict:
+    """Task: Collect subdomains for all seed domains.
 
     Args:
         domains: List of parent domains
@@ -190,9 +184,8 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
     log_prints=True,
     timeout_seconds=7200,  # 2 hours max
 )
-def scheduled_vt_osint(domains: List[str] = None):
-    """
-    Main Prefect flow: Orchestrates domain collection and enrichment.
+def scheduled_vt_osint(domains: list[str] = None):
+    """Main Prefect flow: Orchestrates domain collection and enrichment.
 
     This flow:
     1. Collects intelligence on seed domains
@@ -228,9 +221,8 @@ def scheduled_vt_osint(domains: List[str] = None):
     log.info("prefect_flow_complete", end_time=end_time.isoformat(), duration_seconds=duration)
 
 
-async def run_flow_async(domains: List[str]):
-    """
-    Async execution wrapper for Prefect flow.
+async def run_flow_async(domains: list[str]):
+    """Async execution wrapper for Prefect flow.
 
     Args:
         domains: List of domains to process
@@ -264,8 +256,7 @@ async def run_flow_async(domains: List[str]):
 
 # Alternative: Scheduled deployment
 def deploy_scheduled():
-    """
-    Deploy the flow with a schedule.
+    """Deploy the flow with a schedule.
 
     This creates a Prefect deployment that runs the flow automatically.
     """

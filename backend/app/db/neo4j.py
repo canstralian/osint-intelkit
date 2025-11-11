@@ -1,7 +1,6 @@
 """Neo4j graph database connection and operations."""
 
 import os
-from typing import Dict, List, Optional
 
 import structlog
 from neo4j import GraphDatabase
@@ -40,9 +39,8 @@ def get_driver():
     return _neo4j_conn.connect()
 
 
-async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
-    """
-    Create or update a domain node in the graph.
+async def link_domain(domain: str, metadata: dict | None = None) -> None:
+    """Create or update a domain node in the graph.
 
     Args:
         domain: Domain name
@@ -67,8 +65,7 @@ async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
 
 
 async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") -> None:
-    """
-    Create relationship between domain and IP address.
+    """Create relationship between domain and IP address.
 
     Args:
         domain: Domain name
@@ -92,10 +89,9 @@ async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") ->
 
 
 async def link_domain_to_certificate(
-    domain: str, cert_fingerprint: str, cert_data: Optional[Dict] = None
+    domain: str, cert_fingerprint: str, cert_data: dict | None = None
 ) -> None:
-    """
-    Create relationship between domain and SSL certificate.
+    """Create relationship between domain and SSL certificate.
 
     Args:
         domain: Domain name
@@ -120,8 +116,7 @@ async def link_domain_to_certificate(
 
 
 async def link_domain_to_organization(domain: str, org_name: str) -> None:
-    """
-    Create relationship between domain and organization.
+    """Create relationship between domain and organization.
 
     Args:
         domain: Domain name
@@ -143,8 +138,7 @@ async def link_domain_to_organization(domain: str, org_name: str) -> None:
 
 
 async def add_threat_intel_tag(domain: str, tag: str, source: str, confidence: float = 0.5) -> None:
-    """
-    Add a threat intelligence tag to a domain.
+    """Add a threat intelligence tag to a domain.
 
     Args:
         domain: Domain name
@@ -170,9 +164,8 @@ async def add_threat_intel_tag(domain: str, tag: str, source: str, confidence: f
         )
 
 
-async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
-    """
-    Retrieve graph neighborhood for a domain.
+async def get_domain_graph(domain: str, depth: int = 2) -> dict:
+    """Retrieve graph neighborhood for a domain.
 
     Args:
         domain: Domain name
@@ -214,9 +207,8 @@ async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
         return {"nodes": nodes, "relationships": relationships}
 
 
-async def find_related_domains(domain: str, min_connections: int = 2) -> List[str]:
-    """
-    Find domains related through shared infrastructure.
+async def find_related_domains(domain: str, min_connections: int = 2) -> list[str]:
+    """Find domains related through shared infrastructure.
 
     Args:
         domain: Domain name

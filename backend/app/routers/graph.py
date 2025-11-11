@@ -15,8 +15,7 @@ router = APIRouter()
 async def get_graph(
     domain: str, depth: int = Query(2, ge=1, le=5, description="Graph traversal depth")
 ):
-    """
-    Retrieve graph neighborhood for a domain.
+    """Retrieve graph neighborhood for a domain.
 
     Returns nodes and relationships showing how the domain connects
     to other entities (IPs, certificates, organizations, etc.)
@@ -48,8 +47,7 @@ async def get_graph(
 async def get_related(
     domain: str, min_connections: int = Query(2, ge=1, description="Minimum shared connections")
 ):
-    """
-    Find domains related through shared infrastructure.
+    """Find domains related through shared infrastructure.
 
     Discovers domains that share IPs, certificates, or other infrastructure
     with the target domain.
@@ -78,8 +76,7 @@ async def get_related(
 
 @router.get("/stats")
 async def get_graph_stats():
-    """
-    Get graph database statistics.
+    """Get graph database statistics.
 
     Returns:
         Statistics about entities and relationships

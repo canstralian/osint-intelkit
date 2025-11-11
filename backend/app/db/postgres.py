@@ -3,7 +3,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import asyncpg
 import structlog
@@ -18,9 +18,8 @@ async def get_conn():
     return await asyncpg.connect(os.getenv("POSTGRES_URL"))
 
 
-async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None) -> int:
-    """
-    Save a domain to the database with provenance tracking and pseudonymous ID.
+async def save_domain(domain: str, source: str, metadata: dict | None = None) -> int:
+    """Save a domain to the database with provenance tracking and pseudonymous ID.
 
     Args:
         domain: Domain name to save
@@ -60,9 +59,8 @@ async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None)
         await conn.close()
 
 
-async def last_enrichment(domain: str, source: str) -> Optional[Dict[str, Any]]:
-    """
-    Get the most recent enrichment for a domain from a specific source.
+async def last_enrichment(domain: str, source: str) -> dict[str, Any] | None:
+    """Get the most recent enrichment for a domain from a specific source.
     Used for cache checking.
 
     Args:
@@ -95,12 +93,11 @@ async def add_enrichment(
     domain: str,
     source: str,
     status: str,
-    data: Optional[Dict] = None,
-    error: Optional[str] = None,
+    data: dict | None = None,
+    error: str | None = None,
     confidence: float = 0.0,
 ) -> None:
-    """
-    Add enrichment data for a domain with status tracking.
+    """Add enrichment data for a domain with status tracking.
 
     Args:
         domain: Domain name
@@ -133,9 +130,8 @@ async def add_enrichment(
         await conn.close()
 
 
-async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
-    """
-    Retrieve all enrichments for a domain.
+async def get_domain_enrichments(domain: str) -> list[dict[str, Any]]:
+    """Retrieve all enrichments for a domain.
 
     Args:
         domain: Domain name
@@ -161,9 +157,8 @@ async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
         await conn.close()
 
 
-async def get_domains_by_source(source: str, limit: int = 100) -> List[Dict[str, Any]]:
-    """
-    Get domains from a specific source.
+async def get_domains_by_source(source: str, limit: int = 100) -> list[dict[str, Any]]:
+    """Get domains from a specific source.
 
     Args:
         source: Source identifier
@@ -197,10 +192,9 @@ async def log_audit(
     entity_type: str,
     entity_value: str,
     user_context: str,
-    metadata: Optional[Dict] = None,
+    metadata: dict | None = None,
 ) -> None:
-    """
-    Log an operation to the audit trail.
+    """Log an operation to the audit trail.
 
     Args:
         conn: Database connection
@@ -228,11 +222,10 @@ async def log_audit(
 async def record_api_usage(
     api_name: str,
     endpoint: str,
-    rate_limit_remaining: Optional[int] = None,
-    reset_time: Optional[datetime] = None,
+    rate_limit_remaining: int | None = None,
+    reset_time: datetime | None = None,
 ) -> None:
-    """
-    Record API usage for rate limiting tracking.
+    """Record API usage for rate limiting tracking.
 
     Args:
         api_name: Name of the API

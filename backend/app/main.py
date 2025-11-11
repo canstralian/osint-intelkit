@@ -1,5 +1,4 @@
-"""
-OSINT IntelKit - Automated OSINT Pipeline API
+"""OSINT IntelKit - Automated OSINT Pipeline API
 
 FastAPI application for orchestrating OSINT collection and enrichment.
 

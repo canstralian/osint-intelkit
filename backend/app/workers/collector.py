@@ -1,5 +1,4 @@
-"""
-Domain collection worker - passive OSINT gathering.
+"""Domain collection worker - passive OSINT gathering.
 
 This module performs passive collection of publicly available information
 about domains. All operations are non-intrusive and use public data sources.
@@ -7,7 +6,6 @@ about domains. All operations are non-intrusive and use public data sources.
 
 import asyncio
 from datetime import datetime
-from typing import Dict, Optional
 
 import aiohttp
 import structlog
@@ -19,9 +17,8 @@ from .vt_enricher import vt_enrich_domain
 log = structlog.get_logger()
 
 
-async def collect_domain(domain: str, source: str = "collector") -> Dict:
-    """
-    Passive domain collection - gathers publicly available information.
+async def collect_domain(domain: str, source: str = "collector") -> dict:
+    """Passive domain collection - gathers publicly available information.
 
     This function performs PASSIVE collection only:
     - Certificate transparency logs
@@ -74,9 +71,8 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
         return {"status": "error", "domain": domain, "error": str(e)}
 
 
-async def collect_from_crtsh(domain: str) -> Optional[Dict]:
-    """
-    Query Certificate Transparency logs via crt.sh.
+async def collect_from_crtsh(domain: str) -> dict | None:
+    """Query Certificate Transparency logs via crt.sh.
 
     This is a passive, non-intrusive source that uses public CT logs.
 
@@ -103,7 +99,7 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
                     log.warning("crtsh_http_error", domain=domain, status=response.status)
                     return None
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         log.warning("crtsh_timeout", domain=domain)
         return None
     except Exception as e:
@@ -111,9 +107,8 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
         return None
 
 
-async def collect_subdomains_passive(domain: str) -> Dict:
-    """
-    Collect subdomains from passive sources only.
+async def collect_subdomains_passive(domain: str) -> dict:
+    """Collect subdomains from passive sources only.
 
     Uses:
     - Certificate transparency logs
@@ -158,8 +153,7 @@ async def collect_subdomains_passive(domain: str) -> Dict:
 
 # Main worker loop (for standalone execution)
 async def worker_main():
-    """
-    Main worker loop for continuous operation.
+    """Main worker loop for continuous operation.
 
     This can be run as a separate service that processes domains
     from a queue or database.

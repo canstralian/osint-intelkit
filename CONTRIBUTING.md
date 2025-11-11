@@ -144,35 +144,37 @@ We follow **PEP 8** with the following specifications:
 
 - **Line length:** 100 characters
 - **Indentation:** 4 spaces (no tabs)
-- **String quotes:** Double quotes for docstrings, single quotes for strings (black default)
-- **Import order:** Standard library → Third-party → Local (enforced by isort)
+- **String quotes:** Double quotes for docstrings
+- **Import order:** Standard library → Third-party → Local (automated)
+- **Tooling:** Ruff (replaces black + flake8 + isort)
 
-### Code Formatting
+### Ruff - Lightning Fast Linter & Formatter
 
-We use **black** for code formatting:
+We use **Ruff** for code formatting and linting. Ruff is **10-100x faster** than traditional tools and replaces:
+- black (code formatting)
+- isort (import sorting)
+- flake8 (linting)
+- Plus 700+ additional rules from pylint, pyupgrade, and more
 
+**Format code:**
 ```bash
 make format
 # Or:
-black backend/app
+ruff format backend/app
 ```
 
-### Import Sorting
-
-We use **isort** with black profile:
-
-```bash
-isort backend/app --profile black
-```
-
-### Linting
-
-We use **flake8** for linting:
-
+**Lint code:**
 ```bash
 make lint
 # Or:
-flake8 backend/app --config=.flake8
+ruff check backend/app
+```
+
+**Lint with auto-fix:**
+```bash
+make lint-fix
+# Or:
+ruff check backend/app --fix
 ```
 
 ### Type Checking
@@ -377,8 +379,7 @@ osint-intelkit/
 ├── .github/                     # GitHub Actions workflows
 ├── docker-compose.yml           # Service orchestration
 ├── Makefile                     # Development commands
-├── pyproject.toml               # Tool configuration
-├── .flake8                      # Flake8 configuration
+├── pyproject.toml               # Tool configuration (Ruff, mypy, pytest)
 ├── .pre-commit-config.yaml      # Pre-commit hooks
 └── .editorconfig                # Editor configuration
 ```

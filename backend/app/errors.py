@@ -7,8 +7,7 @@ log = structlog.get_logger()
 
 
 class ErrorEnvelopeMiddleware(BaseHTTPMiddleware):
-    """
-    Global error handler middleware for FastAPI.
+    """Global error handler middleware for FastAPI.
     Catches unhandled exceptions and returns structured error responses.
     """
 
