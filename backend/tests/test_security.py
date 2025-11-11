@@ -21,11 +21,9 @@ def test_pseudo_id_deterministic():
 
 def test_pseudo_id_requires_pepper(monkeypatch):
     monkeypatch.delenv("PEPPER_HEX", raising=False)
-    from importlib import reload
-    import app.security as sec
-    reload(sec)
+    monkeypatch.setattr("app.security.PEPPER", None)
     with pytest.raises(AssertionError):
-        sec.pseudo_id("example.com")
+        pseudo_id("example.com")
 
 def test_salted_hash_unique():
     h1 = salted_hash("secret")
