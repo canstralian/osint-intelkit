@@ -17,3 +17,4 @@ async def test_add_enrichment(monkeypatch):
     monkeypatch.setattr(postgres, "get_conn", AsyncMock(return_value=conn))
     await postgres.add_enrichment("example.com", "vt", "success", {"k":"v"})
     conn.execute.assert_called()
+    conn.close.assert_called()
