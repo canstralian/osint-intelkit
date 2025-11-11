@@ -173,7 +173,7 @@ async def log_audit(conn: asyncpg.Connection, operation: str, entity_type: str,
             INSERT INTO audit_log (operation, entity_type, entity_value, user_context, metadata, timestamp)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, operation, entity_type, entity_value, user_context,
-                           json.dumps(metadata or {}), datetime.utcnow())
+            json.dumps(metadata or {}), datetime.utcnow())
 
 
 async def record_api_usage(api_name: str, endpoint: str,
