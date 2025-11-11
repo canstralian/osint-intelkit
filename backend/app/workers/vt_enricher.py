@@ -1,157 +1,142 @@
 """
-VirusTotal enrichment worker.
-
-Enriches domain data using VirusTotal's API for threat intelligence.
+VirusTotal enricher with resilient error handling, backoff, and cache fallback.
 
 IMPORTANT:
 - Requires valid VirusTotal API key
-- Respects rate limits (4 req/min for free tier)
+- Respects rate limits with exponential backoff
 - Use only for authorized defensive security purposes
 """
 import os
-import asyncio
 import aiohttp
-import logging
-from datetime import datetime
+import asyncio
+import structlog
+from datetime import datetime, timedelta
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
 from typing import Optional, Dict
+from ..db.postgres import add_enrichment, last_enrichment
 
-from ..db.postgres import add_enrichment, record_api_usage
-
-logger = logging.getLogger(__name__)
-
-# VirusTotal API configuration
+log = structlog.get_logger()
 VT_API_KEY = os.getenv("API_KEY_VT")
-VT_BASE_URL = "https://www.virustotal.com/api/v3"
-VT_RATE_LIMIT = int(os.getenv("VT_RATE_LIMIT", "4"))  # requests per minute
+VT_BASE = "https://www.virustotal.com/api/v3"
+HEADERS = {"x-apikey": VT_API_KEY} if VT_API_KEY else {}
 
-# Rate limiting state
-_last_vt_request = None
-_vt_request_count = 0
 
-async def rate_limit_vt():
+class VTQuota(Exception):
+    """Rate limit / quota exceeded."""
+    pass
+
+
+class VTError(Exception):
+    """General VT API error."""
+    pass
+
+
+async def _fetch(session: aiohttp.ClientSession, url: str):
+    """Internal fetch with error classification."""
+    async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+        if resp.status == 429:
+            raise VTQuota("rate_limited")
+        if resp.status >= 500:
+            raise VTError(f"server_error_{resp.status}")
+        if resp.status == 404:
+            # Domain not found in VT - not an error per se
+            return None
+        if resp.status != 200:
+            text = await resp.text()
+            raise VTError(f"bad_status_{resp.status}_{text[:120]}")
+        return await resp.json()
+
+
+@retry(
+    retry=retry_if_exception_type((VTQuota, VTError)),
+    wait=wait_exponential_jitter(initial=2, max=60),
+    stop=stop_after_attempt(5),
+    reraise=True,
+)
+async def vt_call(session, domain):
+    """Call VT API with exponential backoff and jitter."""
+    url = f"{VT_BASE}/domains/{domain}"
+    return await _fetch(session, url)
+
+
+async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Optional[Dict]:
     """
-    Enforce VirusTotal API rate limits.
+    Enrich a domain with VirusTotal data.
 
-    Free tier: 4 requests per minute
-    Premium: Higher limits (configure via environment)
-    """
-    global _last_vt_request, _vt_request_count
-
-    current_time = datetime.utcnow()
-
-    # Reset counter every minute
-    if _last_vt_request is None or (current_time - _last_vt_request).seconds >= 60:
-        _vt_request_count = 0
-        _last_vt_request = current_time
-
-    # Enforce rate limit
-    if _vt_request_count >= VT_RATE_LIMIT:
-        wait_time = 60 - (current_time - _last_vt_request).seconds
-        if wait_time > 0:
-            logger.info(f"[VT] Rate limit reached, waiting {wait_time}s")
-            await asyncio.sleep(wait_time)
-            _vt_request_count = 0
-            _last_vt_request = datetime.utcnow()
-
-    _vt_request_count += 1
-
-async def vt_enrich_domain(domain: str) -> Optional[Dict]:
-    """
-    Fetch threat intelligence for a domain from VirusTotal.
-
-    Retrieves:
-    - Reputation score
-    - Detection statistics
-    - Categories and tags
-    - Historical analysis data
+    Features:
+    - Cache checking with configurable TTL
+    - Exponential backoff with jitter on errors
+    - Graceful fallback to cached data on rate limiting
+    - Comprehensive error logging
 
     Args:
         domain: Domain name to enrich
+        cache_ttl_minutes: Cache TTL in minutes (default: 1440 = 24 hours)
 
     Returns:
-        Enrichment data or None if error
-
-    Rate limiting:
-        Automatically enforced (4 req/min for free tier)
+        Enrichment data dict or None on failure
     """
     if not VT_API_KEY or VT_API_KEY == "your_virustotal_api_key_here":
-        logger.warning("[VT] No valid API key configured, skipping enrichment")
+        log.warning("vt_api_key_missing", domain=domain)
+        await add_enrichment(domain, "virustotal", "failed", error="api_key_missing")
         return None
 
-    logger.info(f"[VT] Enriching domain: {domain}")
+    # Check cache: use last good if recent
+    prev = await last_enrichment(domain, "virustotal")
+    if prev and prev.get("status") in ("success", "cached"):
+        # Simple TTL check
+        if prev.get("created_at") and datetime.utcnow() - prev["created_at"] < timedelta(minutes=cache_ttl_minutes):
+            log.info("vt_cache_hit", domain=domain)
+            await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"))
+            return prev.get("data")
 
-    try:
-        # Enforce rate limiting
-        await rate_limit_vt()
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        try:
+            payload = await vt_call(session, domain)
 
-        headers = {"x-apikey": VT_API_KEY}
-        url = f"{VT_BASE_URL}/domains/{domain}"
+            # Handle 404 (domain not found)
+            if payload is None:
+                log.info("vt_domain_not_found", domain=domain)
+                await add_enrichment(domain, "virustotal", "success", data={"found": False})
+                return {"found": False}
 
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                # Record API usage
-                rate_limit_remaining = response.headers.get("X-Ratelimit-Remaining")
-                await record_api_usage(
-                    "virustotal",
-                    f"/domains/{domain}",
-                    rate_limit_remaining=int(rate_limit_remaining) if rate_limit_remaining else None
-                )
+            attrs = payload.get("data", {}).get("attributes", {}) if payload else {}
 
-                if response.status == 200:
-                    data = await response.json()
+            # Extract relevant fields
+            reduced = {
+                "found": True,
+                "reputation": attrs.get("reputation"),
+                "last_analysis_stats": attrs.get("last_analysis_stats"),
+                "categories": attrs.get("categories"),
+                "harmless_votes": attrs.get("total_votes", {}).get("harmless"),
+                "malicious_votes": attrs.get("total_votes", {}).get("malicious"),
+                "last_analysis_date": attrs.get("last_analysis_date"),
+                "tags": attrs.get("tags", []),
+            }
 
-                    # Extract relevant fields
-                    attributes = data.get("data", {}).get("attributes", {})
+            await add_enrichment(domain, "virustotal", "success", data=reduced)
+            log.info("vt_success", domain=domain, reputation=reduced.get("reputation"))
 
-                    enrichment_data = {
-                        "reputation": attributes.get("reputation"),
-                        "last_analysis_stats": attributes.get("last_analysis_stats", {}),
-                        "last_analysis_date": attributes.get("last_analysis_date"),
-                        "categories": attributes.get("categories", {}),
-                        "total_votes": attributes.get("total_votes", {}),
-                        "popularity_ranks": attributes.get("popularity_ranks", {}),
-                        "last_dns_records": attributes.get("last_dns_records", [])[:10],
-                        "whois": attributes.get("whois"),
-                        "tags": attributes.get("tags", []),
-                    }
+            # Polite pause to avoid bursts on free tier
+            await asyncio.sleep(0.5)
+            return reduced
 
-                    # Calculate confidence score based on detection ratio
-                    stats = enrichment_data.get("last_analysis_stats", {})
-                    total = sum(stats.values()) if stats else 0
-                    malicious = stats.get("malicious", 0)
-                    confidence = (malicious / total) if total > 0 else 0.0
+        except VTQuota as e:
+            log.warning("vt_rate_limited", domain=domain, error=str(e))
+            if prev and prev.get("status") == "success":
+                await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"), error="rate_limited")
+                return prev.get("data")
+            await add_enrichment(domain, "virustotal", "failed", error="rate_limited_no_cache")
+            return None
 
-                    # Save enrichment to database
-                    await add_enrichment(domain, "virustotal", enrichment_data, confidence)
+        except Exception as e:
+            log.exception("vt_failed", domain=domain, error=str(e))
+            if prev and prev.get("status") == "success":
+                await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"), error="error_fallback_cache")
+                return prev.get("data")
+            await add_enrichment(domain, "virustotal", "failed", error=str(e)[:200])
+            return None
 
-                    logger.info(f"[VT] Successfully enriched {domain} "
-                              f"(reputation: {enrichment_data['reputation']}, "
-                              f"malicious detections: {malicious}/{total})")
-
-                    return enrichment_data
-
-                elif response.status == 404:
-                    logger.info(f"[VT] Domain not found in VirusTotal: {domain}")
-                    return None
-
-                elif response.status == 429:
-                    logger.warning(f"[VT] Rate limit exceeded for {domain}")
-                    await asyncio.sleep(60)  # Wait before retry
-                    return None
-
-                else:
-                    logger.error(f"[VT] HTTP {response.status} for {domain}")
-                    error_data = await response.text()
-                    logger.error(f"[VT] Error response: {error_data}")
-                    return None
-
-    except asyncio.TimeoutError:
-        logger.error(f"[VT] Timeout enriching {domain}")
-        return None
-
-    except Exception as e:
-        logger.error(f"[VT] Error enriching {domain}: {e}")
-        return None
 
 async def vt_enrich_ip(ip: str) -> Optional[Dict]:
     """
@@ -164,19 +149,13 @@ async def vt_enrich_ip(ip: str) -> Optional[Dict]:
         Enrichment data or None if error
     """
     if not VT_API_KEY or VT_API_KEY == "your_virustotal_api_key_here":
-        logger.warning("[VT] No valid API key configured")
+        log.warning("vt_api_key_missing")
         return None
 
     try:
-        await rate_limit_vt()
-
-        headers = {"x-apikey": VT_API_KEY}
-        url = f"{VT_BASE_URL}/ip_addresses/{ip}"
-
-        async with aiohttp.ClientSession(headers=headers) as session:
+        async with aiohttp.ClientSession(headers=HEADERS) as session:
+            url = f"{VT_BASE}/ip_addresses/{ip}"
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                await record_api_usage("virustotal", f"/ip_addresses/{ip}")
-
                 if response.status == 200:
                     data = await response.json()
                     attributes = data.get("data", {}).get("attributes", {})
@@ -190,35 +169,12 @@ async def vt_enrich_ip(ip: str) -> Optional[Dict]:
                         "network": attributes.get("network"),
                     }
 
-                    logger.info(f"[VT] Enriched IP {ip}")
+                    log.info("vt_ip_success", ip=ip)
                     return enrichment_data
-
                 else:
-                    logger.warning(f"[VT] HTTP {response.status} for IP {ip}")
+                    log.warning("vt_ip_failed", ip=ip, status=response.status)
                     return None
 
     except Exception as e:
-        logger.error(f"[VT] Error enriching IP {ip}: {e}")
+        log.error("vt_ip_error", ip=ip, error=str(e))
         return None
-
-# Worker main loop for standalone execution
-async def worker_main():
-    """Main enrichment worker loop."""
-    logger.info("[VT Enricher Worker] Starting up")
-
-    while True:
-        try:
-            # Placeholder: Get domains from enrichment queue
-            # domain = await get_next_domain_for_enrichment()
-
-            await asyncio.sleep(60)
-
-        except KeyboardInterrupt:
-            logger.info("[VT Enricher Worker] Shutting down")
-            break
-        except Exception as e:
-            logger.error(f"[VT Enricher Worker] Error: {e}")
-            await asyncio.sleep(5)
-
-if __name__ == "__main__":
-    asyncio.run(worker_main())

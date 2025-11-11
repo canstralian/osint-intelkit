@@ -13,13 +13,11 @@ import logging
 import os
 
 from .routers import tasks, domains, graph
+from .logging_config import configure_logging
+from .errors import ErrorEnvelopeMiddleware
 
-# Configure logging
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Configure structured logging
+log = configure_logging()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -54,6 +52,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Error handling middleware
+app.add_middleware(ErrorEnvelopeMiddleware)
+
 # Include routers
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(domains.router, prefix="/domains", tags=["domains"])
@@ -62,6 +63,7 @@ app.include_router(graph.router, prefix="/graph", tags=["graph"])
 @app.get("/")
 async def root():
     """API health check and status."""
+    log.info("health_check")
     return {
         "status": "online",
         "service": "OSINT IntelKit",
@@ -84,28 +86,19 @@ async def health_check():
         "neo4j": "connected",      # Implement actual check
     }
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler for unhandled errors."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "message": str(exc)
-        }
-    )
-
 @app.on_event("startup")
 async def startup_event():
     """Execute startup tasks."""
-    logger.info("OSINT IntelKit API starting up")
-    logger.warning("IMPORTANT: Use only for authorized targets and ethical purposes")
+    log.info("osint_api_startup")
+    log.warning("authorized_use_only", message="Use only for authorized targets and ethical purposes")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Execute shutdown tasks."""
-    logger.info("OSINT IntelKit API shutting down")
+    log.info("osint_api_shutdown")
     # Close database connections
-    from .db.neo4j import _neo4j_conn
-    _neo4j_conn.close()
+    try:
+        from .db.neo4j import _neo4j_conn
+        _neo4j_conn.close()
+    except Exception as e:
+        log.warning("neo4j_close_failed", error=str(e))
