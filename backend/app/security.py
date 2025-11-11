@@ -1,7 +1,6 @@
 import os
 import hmac
 import binascii
-import secrets
 import idna
 from hashlib import sha256
 from argon2 import PasswordHasher

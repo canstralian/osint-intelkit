@@ -9,9 +9,11 @@ from ..security import pseudo_id
 
 log = structlog.get_logger()
 
+
 async def get_conn():
     """Establish connection to PostgreSQL database."""
     return await asyncpg.connect(os.getenv("POSTGRES_URL"))
+
 
 async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None) -> int:
     """
@@ -47,6 +49,7 @@ async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None)
     finally:
         await conn.close()
 
+
 async def last_enrichment(domain: str, source: str) -> Optional[Dict[str, Any]]:
     """
     Get the most recent enrichment for a domain from a specific source.
@@ -75,7 +78,7 @@ async def last_enrichment(domain: str, source: str) -> Optional[Dict[str, Any]]:
 
 
 async def add_enrichment(domain: str, source: str, status: str, data: Optional[Dict] = None,
-                        error: Optional[str] = None, confidence: float = 0.0) -> None:
+                         error: Optional[str] = None, confidence: float = 0.0) -> None:
     """
     Add enrichment data for a domain with status tracking.
 
@@ -100,6 +103,7 @@ async def add_enrichment(domain: str, source: str, status: str, data: Optional[D
     finally:
         await conn.close()
 
+
 async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
     """
     Retrieve all enrichments for a domain.
@@ -123,6 +127,7 @@ async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
     finally:
         await conn.close()
+
 
 async def get_domains_by_source(source: str, limit: int = 100) -> List[Dict[str, Any]]:
     """
@@ -149,6 +154,7 @@ async def get_domains_by_source(source: str, limit: int = 100) -> List[Dict[str,
     finally:
         await conn.close()
 
+
 async def log_audit(conn: asyncpg.Connection, operation: str, entity_type: str,
                     entity_value: str, user_context: str, metadata: Optional[Dict] = None) -> None:
     """
@@ -167,11 +173,12 @@ async def log_audit(conn: asyncpg.Connection, operation: str, entity_type: str,
             INSERT INTO audit_log (operation, entity_type, entity_value, user_context, metadata, timestamp)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, operation, entity_type, entity_value, user_context,
-             json.dumps(metadata or {}), datetime.utcnow())
+                           json.dumps(metadata or {}), datetime.utcnow())
+
 
 async def record_api_usage(api_name: str, endpoint: str,
-                          rate_limit_remaining: Optional[int] = None,
-                          reset_time: Optional[datetime] = None) -> None:
+                           rate_limit_remaining: Optional[int] = None,
+                           reset_time: Optional[datetime] = None) -> None:
     """
     Record API usage for rate limiting tracking.
 

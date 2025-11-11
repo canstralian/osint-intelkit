@@ -1,16 +1,17 @@
 """Task orchestration endpoints for OSINT collection and enrichment."""
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
+from typing import List
 import structlog
 
 from ..workers.collector import collect_domain
 from ..workers.vt_enricher import vt_enrich_domain
-from ..security import DomainIn, normalize_domain
+from ..security import DomainIn
 
 log = structlog.get_logger()
 
 router = APIRouter()
+
 
 class CollectionRequest(BaseModel):
     """Request model for domain collection."""
@@ -24,6 +25,7 @@ class CollectionRequest(BaseModel):
         """Validate and normalize domain input."""
         return DomainIn(domain=v).domain
 
+
 class EnrichmentRequest(BaseModel):
     """Request model for domain enrichment."""
     domain: str = Field(..., description="Domain name to enrich")
@@ -34,6 +36,7 @@ class EnrichmentRequest(BaseModel):
     def validate_domain(cls, v):
         """Validate and normalize domain input."""
         return DomainIn(domain=v).domain
+
 
 class BulkCollectionRequest(BaseModel):
     """Request model for bulk domain collection."""
@@ -46,6 +49,7 @@ class BulkCollectionRequest(BaseModel):
     def validate_domains(cls, v):
         """Validate and normalize all domain inputs."""
         return [DomainIn(domain=d).domain for d in v]
+
 
 @router.post("/collect")
 async def start_collection(request: CollectionRequest, background_tasks: BackgroundTasks):
@@ -79,6 +83,7 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
         "message": f"Collection started for {request.domain}"
     }
 
+
 @router.post("/enrich")
 async def start_enrichment(request: EnrichmentRequest, background_tasks: BackgroundTasks):
     """
@@ -107,6 +112,7 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
         "sources": request.sources,
         "message": f"Enrichment started for {request.domain}"
     }
+
 
 @router.post("/collect/bulk")
 async def bulk_collection(request: BulkCollectionRequest, background_tasks: BackgroundTasks):
@@ -142,6 +148,7 @@ async def bulk_collection(request: BulkCollectionRequest, background_tasks: Back
         "enrichment_enabled": request.enrich,
         "message": f"Bulk collection started for {len(request.domains)} domains"
     }
+
 
 @router.get("/status")
 async def get_task_status():

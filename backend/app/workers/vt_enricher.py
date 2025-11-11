@@ -132,7 +132,9 @@ async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Option
         except Exception as e:
             log.exception("vt_failed", domain=domain, error=str(e))
             if prev and prev.get("status") == "success":
-                await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"), error="error_fallback_cache")
+                await add_enrichment(
+                    domain, "virustotal", "cached", data=prev.get("data"), error="error_fallback_cache"
+                )
                 return prev.get("data")
             await add_enrichment(domain, "virustotal", "failed", error=str(e)[:200])
             return None

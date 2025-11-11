@@ -1,6 +1,6 @@
 """Domain data retrieval endpoints."""
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
+from typing import Optional
 import logging
 
 from ..db.postgres import (
@@ -11,6 +11,7 @@ from ..db.postgres import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
 
 @router.get("/{domain}/enrichments")
 async def get_enrichments(domain: str):
@@ -43,6 +44,7 @@ async def get_enrichments(domain: str):
         logger.error(f"Error retrieving enrichments for {domain}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/")
 async def list_domains(
     source: Optional[str] = Query(None, description="Filter by source"),
@@ -74,6 +76,7 @@ async def list_domains(
     except Exception as e:
         logger.error(f"Error listing domains: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{domain}/summary")
 async def get_domain_summary(domain: str):
