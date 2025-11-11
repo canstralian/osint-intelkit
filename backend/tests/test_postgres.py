@@ -1,6 +1,6 @@
 """Tests for PostgreSQL database operations with mocked connections."""
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from app.db import postgres
 
 @pytest.mark.asyncio
