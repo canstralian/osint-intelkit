@@ -6,11 +6,8 @@ FastAPI application for orchestrating OSINT collection and enrichment.
 IMPORTANT: This system is designed for authorized security testing,
 defensive security, threat intelligence, and educational purposes only.
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import logging
-import os
 
 from .routers import tasks, domains, graph
 from .logging_config import configure_logging
@@ -60,6 +57,7 @@ app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(domains.router, prefix="/domains", tags=["domains"])
 app.include_router(graph.router, prefix="/graph", tags=["graph"])
 
+
 @app.get("/")
 async def root():
     """API health check and status."""
@@ -76,6 +74,7 @@ async def root():
         }
     }
 
+
 @app.get("/health")
 async def health_check():
     """Detailed health check for monitoring."""
@@ -86,11 +85,13 @@ async def health_check():
         "neo4j": "connected",      # Implement actual check
     }
 
+
 @app.on_event("startup")
 async def startup_event():
     """Execute startup tasks."""
     log.info("osint_api_startup")
     log.warning("authorized_use_only", message="Use only for authorized targets and ethical purposes")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

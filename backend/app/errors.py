@@ -11,6 +11,7 @@ class ErrorEnvelopeMiddleware(BaseHTTPMiddleware):
     Global error handler middleware for FastAPI.
     Catches unhandled exceptions and returns structured error responses.
     """
+
     async def dispatch(self, request: Request, call_next):
         try:
             response = await call_next(request)

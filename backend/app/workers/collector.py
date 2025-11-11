@@ -16,6 +16,7 @@ from .vt_enricher import vt_enrich_domain
 
 log = structlog.get_logger()
 
+
 async def collect_domain(domain: str, source: str = "collector") -> Dict:
     """
     Passive domain collection - gathers publicly available information.
@@ -71,6 +72,7 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
             "error": str(e)
         }
 
+
 async def collect_from_crtsh(domain: str) -> Optional[Dict]:
     """
     Query Certificate Transparency logs via crt.sh.
@@ -106,6 +108,7 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
     except Exception as e:
         log.error("crtsh_error", domain=domain, error=str(e))
         return None
+
 
 async def collect_subdomains_passive(domain: str) -> Dict:
     """
@@ -152,6 +155,8 @@ async def collect_subdomains_passive(domain: str) -> Dict:
     }
 
 # Main worker loop (for standalone execution)
+
+
 async def worker_main():
     """
     Main worker loop for continuous operation.

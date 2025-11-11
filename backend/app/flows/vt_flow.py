@@ -13,7 +13,6 @@ Scheduling options:
 - Event-driven triggers
 """
 import asyncio
-import structlog
 import os
 from typing import List
 from datetime import timedelta, datetime
@@ -37,6 +36,7 @@ log = configure_logging()
 DEFAULT_SEED_DOMAINS = [
     "example.com",  # Replace with authorized targets
 ]
+
 
 def get_seed_domains() -> List[str]:
     """
@@ -63,6 +63,7 @@ def get_seed_domains() -> List[str]:
 
     log.info("seed_domains_loaded", count=len(validated_domains), source="env" if env_domains else "default")
     return validated_domains
+
 
 @task(
     name="collect-seed-domains",
@@ -96,6 +97,7 @@ async def collect_seed_domains(domains: List[str]) -> List[str]:
 
     log.info("prefect_collect_seed_complete", collected=len(collected), total=len(domains))
     return collected
+
 
 @task(
     name="vt-enrich-domains",
@@ -147,6 +149,7 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
 
     return results
 
+
 @task(
     name="collect-subdomains",
     description="Collect subdomains from passive sources",
@@ -184,6 +187,7 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
     log.info("prefect_subdomain_collect_complete", total_subdomains=total_subdomains)
 
     return subdomain_map
+
 
 @flow(
     name="vt-osint-flow",
@@ -228,6 +232,7 @@ def scheduled_vt_osint(domains: List[str] = None):
 
     log.info("prefect_flow_complete", end_time=end_time.isoformat(), duration_seconds=duration)
 
+
 async def run_flow_async(domains: List[str]):
     """
     Async execution wrapper for Prefect flow.
@@ -260,6 +265,8 @@ async def run_flow_async(domains: List[str]):
              enriched_domains=len(enrichment_results))
 
 # Alternative: Scheduled deployment
+
+
 def deploy_scheduled():
     """
     Deploy the flow with a schedule.
@@ -279,6 +286,7 @@ def deploy_scheduled():
 
     deployment.apply()
     log.info("prefect_deployment_created", interval_hours=6)
+
 
 # Entry point for direct execution
 if __name__ == "__main__":

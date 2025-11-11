@@ -1,6 +1,5 @@
 """Graph query endpoints for relationship analysis."""
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 import logging
 
 from ..db.neo4j import (
@@ -11,6 +10,7 @@ from ..db.neo4j import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
 
 @router.get("/{domain}")
 async def get_graph(
@@ -45,6 +45,7 @@ async def get_graph(
         logger.error(f"Error retrieving graph for {domain}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/{domain}/related")
 async def get_related(
     domain: str,
@@ -76,6 +77,7 @@ async def get_related(
     except Exception as e:
         logger.error(f"Error finding related domains for {domain}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/stats")
 async def get_graph_stats():
