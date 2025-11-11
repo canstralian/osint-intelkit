@@ -1,6 +1,6 @@
 """Tests for Prefect flow orchestration with mocked task execution and state transitions."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 from datetime import datetime, timedelta
 from app.flows import vt_flow
 
