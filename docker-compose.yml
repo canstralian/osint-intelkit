@@ -27,17 +27,52 @@ services:
     command: python -m app.workers.collector
     restart: unless-stopped
 
-  scheduler:
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: prefect_server
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    environment:
+      - PREFECT_API_DATABASE_CONNECTION_URL=sqlite+aiosqlite:////root/.prefect/prefect.db
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+    volumes:
+      - prefect_data:/root/.prefect
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prefect-agent:
+    image: prefecthq/prefect:3-latest
+    container_name: prefect_agent
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    command: prefect agent start --pool default-agent-pool --work-queue default
+    restart: unless-stopped
+
+  deployment:
     build: ./backend
-    container_name: osint_scheduler
+    container_name: osint_deployment
     env_file: .env
     depends_on:
-      - postgres
-      - neo4j
+      prefect-server:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
     volumes:
       - ./backend:/app
-    command: python -m app.flows.vt_flow
-    restart: unless-stopped
+    environment:
+      - PREFECT_API_URL=http://prefect-server:4200/api
+    command: python -m app.flows.deploy
+    restart: on-failure
 
   postgres:
     image: postgres:16
@@ -79,3 +114,4 @@ services:
 volumes:
   pgdata:
   neo4jdata:
+  prefect_data:

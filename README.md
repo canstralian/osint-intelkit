@@ -108,14 +108,31 @@ docker compose up --build
 ```
 
 4. **Verify services are running:**
+
+The system starts 6 services:
+- **FastAPI**: http://localhost:8000 (REST API)
+- **Prefect UI**: http://localhost:4200 (Flow orchestration dashboard)
+- **Neo4j Browser**: http://localhost:7474 (Graph database, login: neo4j/testpass)
+- **PostgreSQL**: localhost:5432 (Relational database)
+- **Prefect Agent**: Background worker for flow execution
+- **Deployment Service**: Registers scheduled flows (runs once)
+
 ```bash
-# API
+# Check API health
 curl http://localhost:8000/
 
-# Neo4j Browser
+# Open Prefect dashboard
+open http://localhost:4200
+
+# Open Neo4j browser
 open http://localhost:7474
 # Login: neo4j / testpass
+
+# View all running services
+docker compose ps
 ```
+
+**🎉 That's it!** The OSINT pipeline is now running and will automatically collect and enrich intelligence every 4 hours (or according to your configured schedule).
 
 ---
 
@@ -171,27 +188,114 @@ Visit the auto-generated Swagger UI:
 http://localhost:8000/docs
 ```
 
-### Scheduled Collection with Prefect
+### Automated Scheduled Collection with Prefect
 
-The system includes a Prefect flow for scheduled, automated collection:
+The system includes **fully automated** Prefect orchestration that runs collection and enrichment flows on a schedule without any manual intervention.
 
-1. **Run flow once:**
+#### How It Works
+
+When you start the system with `docker compose up`, the following happens automatically:
+
+1. **Prefect Server** starts and provides the orchestration UI at http://localhost:4200
+2. **Prefect Agent** starts listening for scheduled flow runs
+3. **Deployment Service** registers the OSINT flow with your configured schedule
+4. **Automatic Execution** begins - the flow runs every N hours (default: 4 hours)
+
+#### Configuration
+
+Configure scheduling in your `.env` file:
+
 ```bash
-docker compose exec scheduler python -m app.flows.vt_flow run
+# Schedule type: "interval" or "cron"
+OSINT_SCHEDULE_TYPE=interval
+
+# For interval scheduling: hours between runs
+OSINT_SCHEDULE_INTERVAL_HOURS=4
+
+# For cron scheduling: cron expression
+OSINT_SCHEDULE_CRON=0 2 * * *  # Daily at 2 AM UTC
+OSINT_SCHEDULE_TIMEZONE=UTC
+
+# Seed domains (comma-separated, authorized targets only)
+OSINT_SEED_DOMAINS=example.com,yourdomain.com
 ```
 
-2. **Deploy with 6-hour schedule:**
+#### Schedule Types
+
+**Interval-based** (runs every N hours):
 ```bash
-docker compose exec scheduler python -m app.flows.vt_flow deploy
+OSINT_SCHEDULE_TYPE=interval
+OSINT_SCHEDULE_INTERVAL_HOURS=6  # Every 6 hours
 ```
 
-3. **Configure seed domains:**
+**Cron-based** (runs at specific times):
+```bash
+OSINT_SCHEDULE_TYPE=cron
+OSINT_SCHEDULE_CRON=0 2 * * *    # Daily at 2 AM UTC
+OSINT_SCHEDULE_CRON=0 */6 * * *  # Every 6 hours
+OSINT_SCHEDULE_CRON=0 9,17 * * MON-FRI  # 9 AM and 5 PM on weekdays
+```
 
-Edit `backend/app/flows/vt_flow.py`:
-```python
-SEED_DOMAINS = [
-    "yourdomain.com",  # Replace with authorized targets
-]
+#### Prefect UI Dashboard
+
+Access the Prefect dashboard to monitor your flows:
+
+```
+http://localhost:4200
+```
+
+Features:
+- **Flow Runs**: View all past and scheduled runs
+- **Deployments**: Manage and configure deployments
+- **Logs**: Real-time logs for each flow run
+- **Task Details**: Per-task execution status and timing
+- **Manual Triggers**: Run flows on-demand
+
+#### Manual Operations
+
+**Trigger a manual flow run:**
+```bash
+docker exec -it prefect_agent prefect deployment run 'vt-osint-flow/osint-automated-collection'
+```
+
+**View deployment status:**
+```bash
+docker exec -it prefect_agent prefect deployment ls
+```
+
+**View recent flow runs:**
+```bash
+docker exec -it prefect_agent prefect flow-run ls --limit 10
+```
+
+**Check agent status:**
+```bash
+docker exec -it prefect_agent prefect agent ls
+```
+
+#### Monitoring Flow Execution
+
+**View live logs:**
+```bash
+docker compose logs -f deployment
+docker compose logs -f prefect-agent
+```
+
+**Check Prefect UI:**
+1. Open http://localhost:4200
+2. Navigate to "Flow Runs" to see all executions
+3. Click on any run to see detailed logs and task breakdowns
+
+#### Advanced: Multiple Schedules
+
+Enable additional deployment schedules in `.env`:
+
+```bash
+# Hourly quick scans (high-priority targets)
+ENABLE_HOURLY_SCAN=true
+
+# Daily comprehensive scans (full target list)
+ENABLE_DAILY_SCAN=true
 ```
 
 ---

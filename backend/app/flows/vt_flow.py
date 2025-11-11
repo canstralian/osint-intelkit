@@ -14,8 +14,9 @@ Scheduling options:
 """
 import asyncio
 import logging
+import os
 from typing import List
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from prefect import flow, task
 from prefect.tasks import task_input_hash
@@ -29,9 +30,26 @@ logger = logging.getLogger(__name__)
 
 # Seed domains for scheduled collection
 # IMPORTANT: Only include authorized targets
-SEED_DOMAINS = [
+# Can be overridden via OSINT_SEED_DOMAINS environment variable (comma-separated)
+DEFAULT_SEED_DOMAINS = [
     "example.com",  # Replace with authorized targets
 ]
+
+def get_seed_domains() -> List[str]:
+    """
+    Get seed domains from environment variable or default list.
+
+    Returns:
+        List of authorized domain names to collect
+    """
+    env_domains = os.getenv("OSINT_SEED_DOMAINS", "").strip()
+    if env_domains:
+        domains = [d.strip() for d in env_domains.split(",") if d.strip()]
+        logger.info(f"Using {len(domains)} seed domains from environment")
+        return domains
+    else:
+        logger.info(f"Using {len(DEFAULT_SEED_DOMAINS)} default seed domains")
+        return DEFAULT_SEED_DOMAINS
 
 @task(
     name="collect-seed-domains",
@@ -157,7 +175,8 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
 @flow(
     name="vt-osint-flow",
     description="Scheduled OSINT collection and VirusTotal enrichment flow",
-    log_prints=True
+    log_prints=True,
+    timeout_seconds=7200  # 2 hours max
 )
 def scheduled_vt_osint(domains: List[str] = None):
     """
@@ -170,7 +189,7 @@ def scheduled_vt_osint(domains: List[str] = None):
     4. Updates graph database with relationships
 
     Args:
-        domains: Optional list of domains (defaults to SEED_DOMAINS)
+        domains: Optional list of domains (defaults to seed domains from config)
 
     Usage:
         # Run once:
@@ -183,14 +202,26 @@ def scheduled_vt_osint(domains: List[str] = None):
         )
     """
     if domains is None:
-        domains = SEED_DOMAINS
+        domains = get_seed_domains()
 
-    logger.info(f"[Flow] Starting OSINT collection flow for {len(domains)} domains")
+    start_time = datetime.utcnow()
+    logger.info("=" * 60)
+    logger.info(f"[Flow] OSINT Collection Flow Started")
+    logger.info(f"[Flow] Start Time: {start_time.isoformat()}")
+    logger.info(f"[Flow] Target Domains: {len(domains)}")
+    logger.info("=" * 60)
 
     # Run async tasks
     asyncio.run(run_flow_async(domains))
 
-    logger.info("[Flow] OSINT collection flow completed")
+    end_time = datetime.utcnow()
+    duration = (end_time - start_time).total_seconds()
+
+    logger.info("=" * 60)
+    logger.info(f"[Flow] OSINT Collection Flow Completed")
+    logger.info(f"[Flow] End Time: {end_time.isoformat()}")
+    logger.info(f"[Flow] Duration: {duration:.2f} seconds")
+    logger.info("=" * 60)
 
 async def run_flow_async(domains: List[str]):
     """
