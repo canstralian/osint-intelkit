@@ -1,8 +1,8 @@
 """Tests for Prefect deployment configuration and scheduling.
 
-NOTE: These tests are skipped when using Prefect 3.x due to API changes.
-The deploy.py module uses the deprecated Deployment API which has been
-replaced with flow.deploy() in Prefect 3.x.
+NOTE: These tests are skipped if the deployment module cannot be imported.
+This may be due to Prefect 3.x API changes (the deploy.py module uses the deprecated Deployment API,
+which has been replaced with flow.deploy() in Prefect 3.x) or other import errors (e.g., missing dependencies).
 """
 import pytest
 from unittest.mock import MagicMock, patch, call
