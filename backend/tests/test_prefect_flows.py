@@ -183,7 +183,7 @@ async def test_collect_subdomains_task_with_limit(monkeypatch):
     monkeypatch.setattr("app.flows.vt_flow.save_domain", fake_save_domain)
     monkeypatch.setattr("app.flows.vt_flow.link_domain", fake_link_domain)
 
-    subdomain_map = await vt_flow.collect_subdomains_task.fn(domains)
+    await vt_flow.collect_subdomains_task.fn(domains)
 
     # Should limit to 100 subdomains saved
     assert save_count["count"] == 100
