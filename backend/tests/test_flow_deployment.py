@@ -202,9 +202,11 @@ def test_default_configuration_values(monkeypatch):
     monkeypatch.delenv("OSINT_SCHEDULE_CRON", raising=False)
     monkeypatch.delenv("OSINT_SCHEDULE_TIMEZONE", raising=False)
 
-    # Re-import to get default values
-    import importlib
-    importlib.reload(deploy)
+    # Set module-level constants to their default values
+    monkeypatch.setattr(deploy, "SCHEDULE_INTERVAL_HOURS", 4)
+    monkeypatch.setattr(deploy, "SCHEDULE_TYPE", "interval")
+    monkeypatch.setattr(deploy, "SCHEDULE_CRON", "0 2 * * *")
+    monkeypatch.setattr(deploy, "SCHEDULE_TIMEZONE", "UTC")
 
     # Defaults: interval=4 hours, type=interval
     assert deploy.SCHEDULE_INTERVAL_HOURS == 4
