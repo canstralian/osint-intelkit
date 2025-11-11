@@ -13,5 +13,5 @@ structlog==24.1.0
 python-json-logger==2.0.7
 tenacity==8.2.3
 argon2-cffi==23.1.0
-cryptography==42.0.2
-idna==3.6
+cryptography==44.0.1
+idna==3.7
