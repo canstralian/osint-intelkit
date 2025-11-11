@@ -49,7 +49,7 @@ def test_create_deployment_cron_schedule(monkeypatch):
         mock_deployment = MagicMock()
         mock_deployment_class.build_from_flow.return_value = mock_deployment
 
-        deployment = deploy.create_deployment()
+        deploy.create_deployment()
 
         # Verify cron schedule was used
         mock_deployment_class.build_from_flow.assert_called_once()
