@@ -1,7 +1,6 @@
 """Tests for domain collector worker with passive OSINT operations."""
 import pytest
 from unittest.mock import AsyncMock
-from datetime import datetime
 from app.workers import collector
 
 
