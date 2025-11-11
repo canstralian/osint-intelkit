@@ -11,13 +11,13 @@ IMPORTANT:
 import os
 import asyncio
 import aiohttp
-import logging
 from datetime import datetime
 from typing import Optional, Dict
 
 from ..db.postgres import add_enrichment, record_api_usage
+from ..config.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # VirusTotal API configuration
 VT_API_KEY = os.getenv("API_KEY_VT")
@@ -48,7 +48,7 @@ async def rate_limit_vt():
     if _vt_request_count >= VT_RATE_LIMIT:
         wait_time = 60 - (current_time - _last_vt_request).seconds
         if wait_time > 0:
-            logger.info(f"[VT] Rate limit reached, waiting {wait_time}s")
+            logger.info("vt_rate_limit_reached", wait_seconds=wait_time, rate_limit=VT_RATE_LIMIT)
             await asyncio.sleep(wait_time)
             _vt_request_count = 0
             _last_vt_request = datetime.utcnow()
@@ -75,10 +75,10 @@ async def vt_enrich_domain(domain: str) -> Optional[Dict]:
         Automatically enforced (4 req/min for free tier)
     """
     if not VT_API_KEY or VT_API_KEY == "your_virustotal_api_key_here":
-        logger.warning("[VT] No valid API key configured, skipping enrichment")
+        logger.warning("vt_api_key_missing", message="No valid API key configured, skipping enrichment")
         return None
 
-    logger.info(f"[VT] Enriching domain: {domain}")
+    logger.info("vt_enrichment_started", domain=domain, security_event=True)
 
     try:
         # Enforce rate limiting
@@ -124,33 +124,44 @@ async def vt_enrich_domain(domain: str) -> Optional[Dict]:
                     # Save enrichment to database
                     await add_enrichment(domain, "virustotal", enrichment_data, confidence)
 
-                    logger.info(f"[VT] Successfully enriched {domain} "
-                              f"(reputation: {enrichment_data['reputation']}, "
-                              f"malicious detections: {malicious}/{total})")
+                    logger.info(
+                        "vt_enrichment_success",
+                        domain=domain,
+                        reputation=enrichment_data['reputation'],
+                        malicious_detections=malicious,
+                        total_detections=total,
+                        confidence=confidence,
+                        security_event=True
+                    )
 
                     return enrichment_data
 
                 elif response.status == 404:
-                    logger.info(f"[VT] Domain not found in VirusTotal: {domain}")
+                    logger.info("vt_domain_not_found", domain=domain)
                     return None
 
                 elif response.status == 429:
-                    logger.warning(f"[VT] Rate limit exceeded for {domain}")
+                    logger.warning("vt_rate_limit_exceeded", domain=domain, security_event=True)
                     await asyncio.sleep(60)  # Wait before retry
                     return None
 
                 else:
-                    logger.error(f"[VT] HTTP {response.status} for {domain}")
                     error_data = await response.text()
-                    logger.error(f"[VT] Error response: {error_data}")
+                    logger.error(
+                        "vt_http_error",
+                        domain=domain,
+                        status_code=response.status,
+                        error_response=error_data[:200],  # Limit error message length
+                        security_event=True
+                    )
                     return None
 
     except asyncio.TimeoutError:
-        logger.error(f"[VT] Timeout enriching {domain}")
+        logger.error("vt_timeout", domain=domain, security_event=True)
         return None
 
     except Exception as e:
-        logger.error(f"[VT] Error enriching {domain}: {e}")
+        logger.error("vt_enrichment_error", domain=domain, error=str(e), exc_info=True, security_event=True)
         return None
 
 async def vt_enrich_ip(ip: str) -> Optional[Dict]:
