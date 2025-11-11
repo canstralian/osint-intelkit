@@ -6,13 +6,16 @@ IMPORTANT:
 - Respects rate limits with exponential backoff
 - Use only for authorized defensive security purposes
 """
-import os
-import aiohttp
+
 import asyncio
-import structlog
+import os
 from datetime import datetime, timedelta
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
-from typing import Optional, Dict
+from typing import Dict, Optional
+
+import aiohttp
+import structlog
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+
 from ..db.postgres import add_enrichment, last_enrichment
 
 log = structlog.get_logger()
@@ -23,11 +26,13 @@ HEADERS = {"x-apikey": VT_API_KEY} if VT_API_KEY else {}
 
 class VTQuota(Exception):
     """Rate limit / quota exceeded."""
+
     pass
 
 
 class VTError(Exception):
     """General VT API error."""
+
     pass
 
 
@@ -85,7 +90,9 @@ async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Option
     prev = await last_enrichment(domain, "virustotal")
     if prev and prev.get("status") in ("success", "cached"):
         # Simple TTL check
-        if prev.get("created_at") and datetime.utcnow() - prev["created_at"] < timedelta(minutes=cache_ttl_minutes):
+        if prev.get("created_at") and datetime.utcnow() - prev["created_at"] < timedelta(
+            minutes=cache_ttl_minutes
+        ):
             log.info("vt_cache_hit", domain=domain)
             await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"))
             return prev.get("data")
@@ -124,7 +131,9 @@ async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Option
         except VTQuota as e:
             log.warning("vt_rate_limited", domain=domain, error=str(e))
             if prev and prev.get("status") == "success":
-                await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"), error="rate_limited")
+                await add_enrichment(
+                    domain, "virustotal", "cached", data=prev.get("data"), error="rate_limited"
+                )
                 return prev.get("data")
             await add_enrichment(domain, "virustotal", "failed", error="rate_limited_no_cache")
             return None
@@ -132,7 +141,13 @@ async def vt_enrich_domain(domain: str, cache_ttl_minutes: int = 1440) -> Option
         except Exception as e:
             log.exception("vt_failed", domain=domain, error=str(e))
             if prev and prev.get("status") == "success":
-                await add_enrichment(domain, "virustotal", "cached", data=prev.get("data"), error="error_fallback_cache")
+                await add_enrichment(
+                    domain,
+                    "virustotal",
+                    "cached",
+                    data=prev.get("data"),
+                    error="error_fallback_cache",
+                )
                 return prev.get("data")
             await add_enrichment(domain, "virustotal", "failed", error=str(e)[:200])
             return None

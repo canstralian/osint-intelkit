@@ -1,10 +1,13 @@
 """Neo4j graph database connection and operations."""
-from neo4j import GraphDatabase, AsyncGraphDatabase
+
 import os
+from typing import Dict, List, Optional
+
 import structlog
-from typing import Optional, Dict, List
+from neo4j import GraphDatabase
 
 log = structlog.get_logger()
+
 
 class Neo4jConnection:
     """Neo4j database connection manager."""
@@ -27,12 +30,15 @@ class Neo4jConnection:
             self.driver.close()
             self.driver = None
 
+
 # Global connection instance
 _neo4j_conn = Neo4jConnection()
+
 
 def get_driver():
     """Get Neo4j driver instance."""
     return _neo4j_conn.connect()
+
 
 async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
     """
@@ -53,11 +59,12 @@ async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
                 RETURN d
                 """,
                 domain=domain,
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
             log.info("neo4j_merge_domain", domain=domain)
     except Exception as e:
         log.warning("neo4j_error", domain=domain, operation="link_domain", error=str(e))
+
 
 async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") -> None:
     """
@@ -80,11 +87,13 @@ async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") ->
             """,
             domain=domain,
             ip=ip,
-            resolution_type=resolution_type
+            resolution_type=resolution_type,
         )
 
-async def link_domain_to_certificate(domain: str, cert_fingerprint: str,
-                                     cert_data: Optional[Dict] = None) -> None:
+
+async def link_domain_to_certificate(
+    domain: str, cert_fingerprint: str, cert_data: Optional[Dict] = None
+) -> None:
     """
     Create relationship between domain and SSL certificate.
 
@@ -106,8 +115,9 @@ async def link_domain_to_certificate(domain: str, cert_fingerprint: str,
             """,
             domain=domain,
             fingerprint=cert_fingerprint,
-            cert_data=cert_data or {}
+            cert_data=cert_data or {},
         )
+
 
 async def link_domain_to_organization(domain: str, org_name: str) -> None:
     """
@@ -128,11 +138,11 @@ async def link_domain_to_organization(domain: str, org_name: str) -> None:
             ON MATCH SET r.last_seen = timestamp()
             """,
             domain=domain,
-            org_name=org_name
+            org_name=org_name,
         )
 
-async def add_threat_intel_tag(domain: str, tag: str, source: str,
-                               confidence: float = 0.5) -> None:
+
+async def add_threat_intel_tag(domain: str, tag: str, source: str, confidence: float = 0.5) -> None:
     """
     Add a threat intelligence tag to a domain.
 
@@ -156,8 +166,9 @@ async def add_threat_intel_tag(domain: str, tag: str, source: str,
             domain=domain,
             tag=tag,
             source=source,
-            confidence=confidence
+            confidence=confidence,
         )
+
 
 async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
     """
@@ -179,7 +190,7 @@ async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
             LIMIT 100
             """,
             domain=domain,
-            depth=depth
+            depth=depth,
         )
 
         nodes = []
@@ -188,24 +199,20 @@ async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
         for record in result:
             path = record["path"]
             for node in path.nodes:
-                nodes.append({
-                    "id": node.id,
-                    "labels": list(node.labels),
-                    "properties": dict(node)
-                })
+                nodes.append({"id": node.id, "labels": list(node.labels), "properties": dict(node)})
             for rel in path.relationships:
-                relationships.append({
-                    "id": rel.id,
-                    "type": rel.type,
-                    "start": rel.start_node.id,
-                    "end": rel.end_node.id,
-                    "properties": dict(rel)
-                })
+                relationships.append(
+                    {
+                        "id": rel.id,
+                        "type": rel.type,
+                        "start": rel.start_node.id,
+                        "end": rel.end_node.id,
+                        "properties": dict(rel),
+                    }
+                )
 
-        return {
-            "nodes": nodes,
-            "relationships": relationships
-        }
+        return {"nodes": nodes, "relationships": relationships}
+
 
 async def find_related_domains(domain: str, min_connections: int = 2) -> List[str]:
     """
@@ -231,7 +238,7 @@ async def find_related_domains(domain: str, min_connections: int = 2) -> List[st
             LIMIT 50
             """,
             domain=domain,
-            min_connections=min_connections
+            min_connections=min_connections,
         )
 
         return [record["related_domain"] for record in result]

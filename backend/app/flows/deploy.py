@@ -9,13 +9,14 @@ Configuration:
 - Cron-based scheduling (specific times)
 - Configurable via environment variables
 """
-import os
+
 import logging
+import os
 import time
 from datetime import timedelta
 
 from prefect.deployments import Deployment
-from prefect.server.schemas.schedules import IntervalSchedule, CronSchedule
+from prefect.server.schemas.schedules import CronSchedule, IntervalSchedule
 
 # Import the flow to deploy
 from app.flows.vt_flow import scheduled_vt_osint
@@ -28,6 +29,7 @@ SCHEDULE_INTERVAL_HOURS = int(os.getenv("OSINT_SCHEDULE_INTERVAL_HOURS", "4"))
 SCHEDULE_TYPE = os.getenv("OSINT_SCHEDULE_TYPE", "interval")  # "interval" or "cron"
 SCHEDULE_CRON = os.getenv("OSINT_SCHEDULE_CRON", "0 2 * * *")  # Default: 2 AM UTC daily
 SCHEDULE_TIMEZONE = os.getenv("OSINT_SCHEDULE_TIMEZONE", "UTC")
+
 
 def create_deployment():
     """
@@ -42,15 +44,10 @@ def create_deployment():
 
     # Choose schedule type
     if SCHEDULE_TYPE == "cron":
-        schedule = CronSchedule(
-            cron=SCHEDULE_CRON,
-            timezone=SCHEDULE_TIMEZONE
-        )
+        schedule = CronSchedule(cron=SCHEDULE_CRON, timezone=SCHEDULE_TIMEZONE)
         logger.info(f"Using cron schedule: {SCHEDULE_CRON} ({SCHEDULE_TIMEZONE})")
     else:
-        schedule = IntervalSchedule(
-            interval=timedelta(hours=SCHEDULE_INTERVAL_HOURS)
-        )
+        schedule = IntervalSchedule(interval=timedelta(hours=SCHEDULE_INTERVAL_HOURS))
         logger.info(f"Using interval schedule: every {SCHEDULE_INTERVAL_HOURS} hours")
 
     # Build deployment
@@ -74,6 +71,7 @@ def create_deployment():
     logger.info(f"  Tags: {deployment.tags}")
 
     return deployment
+
 
 def deploy():
     """
@@ -117,7 +115,9 @@ def deploy():
         logger.info("View deployments: http://localhost:4200/deployments")
         logger.info("View flow runs: http://localhost:4200/flow-runs")
         logger.info("\nTo trigger a manual run:")
-        logger.info("  docker exec -it prefect_agent prefect deployment run 'vt-osint-flow/osint-automated-collection'")
+        logger.info(
+            "  docker exec -it prefect_agent prefect deployment run 'vt-osint-flow/osint-automated-collection'"
+        )
         logger.info("=" * 60)
 
         return deployment_id
@@ -126,6 +126,7 @@ def deploy():
         logger.error(f"❌ Deployment failed: {e}")
         logger.error("Check that Prefect server is running and accessible")
         raise
+
 
 def create_additional_deployments():
     """
@@ -163,6 +164,7 @@ def create_additional_deployments():
         )
         daily_deployment.apply()
         logger.info("✅ Daily comprehensive scan deployment created")
+
 
 if __name__ == "__main__":
     # Deploy main OSINT flow

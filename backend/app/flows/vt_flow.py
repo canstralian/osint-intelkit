@@ -12,23 +12,24 @@ Scheduling options:
 - Cron-based schedules
 - Event-driven triggers
 """
+
 import asyncio
-import structlog
 import os
+from datetime import datetime, timedelta
 from typing import List
-from datetime import timedelta, datetime
 
 from prefect import flow, task
 from prefect.tasks import task_input_hash
 
-from app.db.postgres import save_domain
-from app.workers.vt_enricher import vt_enrich_domain
-from app.workers.collector import collect_domain, collect_subdomains_passive
 from app.db.neo4j import link_domain
-from app.security import DomainIn
+from app.db.postgres import save_domain
 
 # Configure structured logging for Prefect flows
 from app.logging_config import configure_logging
+from app.security import DomainIn
+from app.workers.collector import collect_domain, collect_subdomains_passive
+from app.workers.vt_enricher import vt_enrich_domain
+
 log = configure_logging()
 
 # Seed domains for scheduled collection
@@ -37,6 +38,7 @@ log = configure_logging()
 DEFAULT_SEED_DOMAINS = [
     "example.com",  # Replace with authorized targets
 ]
+
 
 def get_seed_domains() -> List[str]:
     """
@@ -61,8 +63,13 @@ def get_seed_domains() -> List[str]:
         except Exception as e:
             log.warning("seed_domain_invalid", domain=domain, error=str(e))
 
-    log.info("seed_domains_loaded", count=len(validated_domains), source="env" if env_domains else "default")
+    log.info(
+        "seed_domains_loaded",
+        count=len(validated_domains),
+        source="env" if env_domains else "default",
+    )
     return validated_domains
+
 
 @task(
     name="collect-seed-domains",
@@ -70,7 +77,7 @@ def get_seed_domains() -> List[str]:
     retries=2,
     retry_delay_seconds=60,
     cache_key_fn=task_input_hash,
-    cache_expiration=timedelta(hours=1)
+    cache_expiration=timedelta(hours=1),
 )
 async def collect_seed_domains(domains: List[str]) -> List[str]:
     """
@@ -97,11 +104,12 @@ async def collect_seed_domains(domains: List[str]) -> List[str]:
     log.info("prefect_collect_seed_complete", collected=len(collected), total=len(domains))
     return collected
 
+
 @task(
     name="vt-enrich-domains",
     description="Enrich domains with VirusTotal intelligence",
     retries=3,
-    retry_delay_seconds=120
+    retry_delay_seconds=120,
 )
 async def vt_enrich_all(domains: List[str]) -> List[dict]:
     """
@@ -120,38 +128,28 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
         try:
             enrichment = await vt_enrich_domain(domain)
             if enrichment:
-                results.append({
-                    "domain": domain,
-                    "status": "success",
-                    "data": enrichment
-                })
+                results.append({"domain": domain, "status": "success", "data": enrichment})
             else:
-                results.append({
-                    "domain": domain,
-                    "status": "no_data"
-                })
+                results.append({"domain": domain, "status": "no_data"})
 
             # Rate limiting pause between requests
             await asyncio.sleep(15)  # 4 req/min = 15s between requests
 
         except Exception as e:
             log.error("prefect_vt_enrich_failed", domain=domain, error=str(e))
-            results.append({
-                "domain": domain,
-                "status": "error",
-                "error": str(e)
-            })
+            results.append({"domain": domain, "status": "error", "error": str(e)})
 
     success_count = sum(1 for r in results if r["status"] == "success")
     log.info("prefect_vt_enrich_complete", success=success_count, total=len(domains))
 
     return results
 
+
 @task(
     name="collect-subdomains",
     description="Collect subdomains from passive sources",
     retries=2,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 async def collect_subdomains_task(domains: List[str]) -> dict:
     """
@@ -185,11 +183,12 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
 
     return subdomain_map
 
+
 @flow(
     name="vt-osint-flow",
     description="Scheduled OSINT collection and VirusTotal enrichment flow",
     log_prints=True,
-    timeout_seconds=7200  # 2 hours max
+    timeout_seconds=7200,  # 2 hours max
 )
 def scheduled_vt_osint(domains: List[str] = None):
     """
@@ -228,6 +227,7 @@ def scheduled_vt_osint(domains: List[str] = None):
 
     log.info("prefect_flow_complete", end_time=end_time.isoformat(), duration_seconds=duration)
 
+
 async def run_flow_async(domains: List[str]):
     """
     Async execution wrapper for Prefect flow.
@@ -254,10 +254,13 @@ async def run_flow_async(domains: List[str]):
 
     # Log summary
     total_subdomains = sum(len(s) for s in subdomain_map.values())
-    log.info("prefect_flow_summary",
-             collected_domains=len(collected_domains),
-             discovered_subdomains=total_subdomains,
-             enriched_domains=len(enrichment_results))
+    log.info(
+        "prefect_flow_summary",
+        collected_domains=len(collected_domains),
+        discovered_subdomains=total_subdomains,
+        enriched_domains=len(enrichment_results),
+    )
+
 
 # Alternative: Scheduled deployment
 def deploy_scheduled():
@@ -274,11 +277,12 @@ def deploy_scheduled():
         name="osint-pipeline-6h",
         schedule=IntervalSchedule(interval=timedelta(hours=6)),
         work_queue_name="osint",
-        tags=["osint", "virustotal", "scheduled"]
+        tags=["osint", "virustotal", "scheduled"],
     )
 
     deployment.apply()
     log.info("prefect_deployment_created", interval_hours=6)
+
 
 # Entry point for direct execution
 if __name__ == "__main__":

@@ -1,21 +1,19 @@
 """Graph query endpoints for relationship analysis."""
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+
 import logging
 
-from ..db.neo4j import (
-    get_domain_graph,
-    find_related_domains
-)
+from fastapi import APIRouter, HTTPException, Query
+
+from ..db.neo4j import find_related_domains, get_domain_graph
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/{domain}")
 async def get_graph(
-    domain: str,
-    depth: int = Query(2, ge=1, le=5, description="Graph traversal depth")
+    domain: str, depth: int = Query(2, ge=1, le=5, description="Graph traversal depth")
 ):
     """
     Retrieve graph neighborhood for a domain.
@@ -38,17 +36,17 @@ async def get_graph(
             "depth": depth,
             "node_count": len(graph_data.get("nodes", [])),
             "relationship_count": len(graph_data.get("relationships", [])),
-            "graph": graph_data
+            "graph": graph_data,
         }
 
     except Exception as e:
         logger.error(f"Error retrieving graph for {domain}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/{domain}/related")
 async def get_related(
-    domain: str,
-    min_connections: int = Query(2, ge=1, description="Minimum shared connections")
+    domain: str, min_connections: int = Query(2, ge=1, description="Minimum shared connections")
 ):
     """
     Find domains related through shared infrastructure.
@@ -70,12 +68,13 @@ async def get_related(
             "domain": domain,
             "related_count": len(related),
             "related_domains": related,
-            "min_connections": min_connections
+            "min_connections": min_connections,
         }
 
     except Exception as e:
         logger.error(f"Error finding related domains for {domain}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/stats")
 async def get_graph_stats():
@@ -91,5 +90,5 @@ async def get_graph_stats():
         "total_ips": 0,
         "total_certificates": 0,
         "total_organizations": 0,
-        "total_relationships": 0
+        "total_relationships": 0,
     }

@@ -6,15 +6,13 @@ FastAPI application for orchestrating OSINT collection and enrichment.
 IMPORTANT: This system is designed for authorized security testing,
 defensive security, threat intelligence, and educational purposes only.
 """
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import logging
-import os
 
-from .routers import tasks, domains, graph
-from .logging_config import configure_logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from .errors import ErrorEnvelopeMiddleware
+from .logging_config import configure_logging
+from .routers import domains, graph, tasks
 
 # Configure structured logging
 log = configure_logging()
@@ -40,7 +38,7 @@ app = FastAPI(
     """,
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # CORS middleware for web UI integration
@@ -60,6 +58,7 @@ app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(domains.router, prefix="/domains", tags=["domains"])
 app.include_router(graph.router, prefix="/graph", tags=["graph"])
 
+
 @app.get("/")
 async def root():
     """API health check and status."""
@@ -68,13 +67,9 @@ async def root():
         "status": "online",
         "service": "OSINT IntelKit",
         "version": "1.0.0",
-        "endpoints": {
-            "docs": "/docs",
-            "tasks": "/tasks",
-            "domains": "/domains",
-            "graph": "/graph"
-        }
+        "endpoints": {"docs": "/docs", "tasks": "/tasks", "domains": "/domains", "graph": "/graph"},
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -83,14 +78,18 @@ async def health_check():
     return {
         "status": "healthy",
         "postgres": "connected",  # Implement actual check
-        "neo4j": "connected",      # Implement actual check
+        "neo4j": "connected",  # Implement actual check
     }
+
 
 @app.on_event("startup")
 async def startup_event():
     """Execute startup tasks."""
     log.info("osint_api_startup")
-    log.warning("authorized_use_only", message="Use only for authorized targets and ethical purposes")
+    log.warning(
+        "authorized_use_only", message="Use only for authorized targets and ethical purposes"
+    )
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -99,6 +98,7 @@ async def shutdown_event():
     # Close database connections
     try:
         from .db.neo4j import _neo4j_conn
+
         _neo4j_conn.close()
     except Exception as e:
         log.warning("neo4j_close_failed", error=str(e))

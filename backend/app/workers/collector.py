@@ -4,17 +4,20 @@ Domain collection worker - passive OSINT gathering.
 This module performs passive collection of publicly available information
 about domains. All operations are non-intrusive and use public data sources.
 """
+
 import asyncio
+from datetime import datetime
+from typing import Dict, Optional
+
 import aiohttp
 import structlog
-from typing import Optional, Dict
-from datetime import datetime
 
-from ..db.postgres import save_domain
 from ..db.neo4j import link_domain
+from ..db.postgres import save_domain
 from .vt_enricher import vt_enrich_domain
 
 log = structlog.get_logger()
+
 
 async def collect_domain(domain: str, source: str = "collector") -> Dict:
     """
@@ -39,16 +42,19 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
 
     try:
         # Save domain to PostgreSQL with provenance
-        domain_id = await save_domain(domain, source, metadata={
-            "collection_timestamp": datetime.utcnow().isoformat(),
-            "collection_method": "passive"
-        })
+        domain_id = await save_domain(
+            domain,
+            source,
+            metadata={
+                "collection_timestamp": datetime.utcnow().isoformat(),
+                "collection_method": "passive",
+            },
+        )
 
         # Create or update domain node in Neo4j graph
-        await link_domain(domain, metadata={
-            "source": source,
-            "collected_at": datetime.utcnow().isoformat()
-        })
+        await link_domain(
+            domain, metadata={"source": source, "collected_at": datetime.utcnow().isoformat()}
+        )
 
         log.info("collector_recorded", domain=domain)
 
@@ -60,16 +66,13 @@ async def collect_domain(domain: str, source: str = "collector") -> Dict:
             "domain": domain,
             "domain_id": domain_id,
             "source": source,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
         log.exception("collector_error", domain=domain, error=str(e))
-        return {
-            "status": "error",
-            "domain": domain,
-            "error": str(e)
-        }
+        return {"status": "error", "domain": domain, "error": str(e)}
+
 
 async def collect_from_crtsh(domain: str) -> Optional[Dict]:
     """
@@ -94,7 +97,7 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
                     return {
                         "source": "crt.sh",
                         "certificate_count": len(data),
-                        "certificates": data[:100]  # Limit to avoid large payloads
+                        "certificates": data[:100],  # Limit to avoid large payloads
                     }
                 else:
                     log.warning("crtsh_http_error", domain=domain, status=response.status)
@@ -106,6 +109,7 @@ async def collect_from_crtsh(domain: str) -> Optional[Dict]:
     except Exception as e:
         log.error("crtsh_error", domain=domain, error=str(e))
         return None
+
 
 async def collect_subdomains_passive(domain: str) -> Dict:
     """
@@ -148,8 +152,9 @@ async def collect_subdomains_passive(domain: str) -> Dict:
         "domain": domain,
         "subdomain_count": len(subdomains),
         "subdomains": list(subdomains)[:500],  # Limit results
-        "sources": ["certificate_transparency"]
+        "sources": ["certificate_transparency"],
     }
+
 
 # Main worker loop (for standalone execution)
 async def worker_main():
@@ -177,6 +182,7 @@ async def worker_main():
         except Exception as e:
             log.error("collector_worker_error", error=str(e))
             await asyncio.sleep(5)
+
 
 if __name__ == "__main__":
     asyncio.run(worker_main())

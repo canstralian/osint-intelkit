@@ -1,13 +1,15 @@
-import os
-import hmac
 import binascii
-import secrets
-import idna
+import hmac
+import os
 from hashlib import sha256
+
+import idna
 from argon2 import PasswordHasher
 from pydantic import BaseModel, field_validator
 
-PEPPER = binascii.unhexlify(os.getenv("PEPPER_HEX", "").encode()) if os.getenv("PEPPER_HEX") else None
+PEPPER = (
+    binascii.unhexlify(os.getenv("PEPPER_HEX", "").encode()) if os.getenv("PEPPER_HEX") else None
+)
 argon = PasswordHasher(time_cost=2, memory_cost=51200, parallelism=2)
 
 
@@ -45,6 +47,7 @@ def salted_hash(value: str) -> str:
 
 class DomainIn(BaseModel):
     """Pydantic model for domain input validation."""
+
     domain: str
 
     @field_validator("domain")

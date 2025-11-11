@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+
 import structlog
 from pythonjsonlogger import jsonlogger
 
