@@ -5,7 +5,7 @@ def test_normalize_domain_basic():
     assert normalize_domain("Example.COM") == "example.com"
 
 def test_normalize_domain_idna():
-    assert normalize_domain("münich.de") in ("xn--mnich-kva.de", "münich.de")
+    assert normalize_domain("münich.de") == "xn--mnich-kva.de"
 
 def test_domainin_validation():
     model = DomainIn(domain="test.com")
