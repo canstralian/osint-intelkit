@@ -1,5 +1,5 @@
 import pytest
-from app.security import normalize_domain, pseudo_id, salted_hash, DomainIn, PEPPER
+from app.security import normalize_domain, pseudo_id, salted_hash, DomainIn
 
 def test_normalize_domain_basic():
     assert normalize_domain("Example.COM") == "example.com"
