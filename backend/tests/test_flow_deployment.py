@@ -5,7 +5,7 @@ This may be due to Prefect 3.x API changes (the deploy.py module uses the deprec
 which has been replaced with flow.deploy() in Prefect 3.x) or other import errors (e.g., missing dependencies).
 """
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from datetime import timedelta
 
 try:
