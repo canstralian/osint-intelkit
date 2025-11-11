@@ -278,7 +278,7 @@ async def test_collect_domain_metadata_structure(monkeypatch):
     monkeypatch.setattr("app.workers.collector.link_domain", fake_link_domain)
     monkeypatch.setattr("app.workers.collector.vt_enrich_domain", fake_vt_enrich)
 
-    result = await collector.collect_domain(domain, source="test")
+    await collector.collect_domain(domain, source="test")
 
     # Verify metadata structure
     assert "collection_timestamp" in saved_metadata
