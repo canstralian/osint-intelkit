@@ -2,16 +2,22 @@
 import asyncpg
 import os
 import json
+import structlog
 from datetime import datetime
 from typing import Optional, Dict, List, Any
+from ..security import pseudo_id
+
+log = structlog.get_logger()
+
 
 async def get_conn():
     """Establish connection to PostgreSQL database."""
     return await asyncpg.connect(os.getenv("POSTGRES_URL"))
 
+
 async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None) -> int:
     """
-    Save a domain to the database with provenance tracking.
+    Save a domain to the database with provenance tracking and pseudonymous ID.
 
     Args:
         domain: Domain name to save
@@ -21,47 +27,82 @@ async def save_domain(domain: str, source: str, metadata: Optional[Dict] = None)
     Returns:
         Domain ID
     """
+    pid = pseudo_id(domain)
     conn = await get_conn()
     try:
         # Upsert domain and update last_seen timestamp
         result = await conn.fetchrow("""
-            INSERT INTO domains (name, source, metadata, first_seen, last_seen)
-            VALUES ($1, $2, $3, $4, $4)
+            INSERT INTO domains (name, pseudo_id, source, metadata, first_seen, last_seen)
+            VALUES ($1, $2, $3, $4, $5, $5)
             ON CONFLICT (name)
             DO UPDATE SET
                 last_seen = EXCLUDED.last_seen,
                 metadata = domains.metadata || EXCLUDED.metadata
             RETURNING id
-        """, domain, source, json.dumps(metadata or {}), datetime.utcnow())
+        """, domain, pid, source, json.dumps(metadata or {}), datetime.utcnow())
 
         # Log to audit trail
         await log_audit(conn, "domain_saved", "domain", domain, source)
+        log.info("domain_saved", domain=domain, pseudo_id=pid, source=source)
 
         return result['id']
     finally:
         await conn.close()
 
-async def add_enrichment(domain: str, source: str, data: Dict, confidence: float = 0.0) -> None:
+
+async def last_enrichment(domain: str, source: str) -> Optional[Dict[str, Any]]:
     """
-    Add enrichment data for a domain.
+    Get the most recent enrichment for a domain from a specific source.
+    Used for cache checking.
+
+    Args:
+        domain: Domain name
+        source: Enrichment source
+
+    Returns:
+        Enrichment record or None
+    """
+    conn = await get_conn()
+    try:
+        row = await conn.fetchrow("""
+            SELECT e.data, e.status, e.created_at
+            FROM enrichments e
+            JOIN domains d ON d.id = e.domain_id
+            WHERE d.name = $1 AND e.source = $2
+            ORDER BY e.created_at DESC
+            LIMIT 1
+        """, domain, source)
+        return dict(row) if row else None
+    finally:
+        await conn.close()
+
+
+async def add_enrichment(domain: str, source: str, status: str, data: Optional[Dict] = None,
+                         error: Optional[str] = None, confidence: float = 0.0) -> None:
+    """
+    Add enrichment data for a domain with status tracking.
 
     Args:
         domain: Domain name
         source: Enrichment source (e.g., 'virustotal', 'shodan')
-        data: Enrichment data dictionary
+        status: Enrichment status ('pending', 'success', 'failed', 'cached')
+        data: Enrichment data dictionary (optional)
+        error: Error message if failed (optional)
         confidence: Confidence score (0.0 to 1.0)
     """
     conn = await get_conn()
     try:
         await conn.execute("""
-            INSERT INTO enrichments (domain_id, source, data, confidence_score, timestamp)
-            SELECT id, $2, $3, $4, $5 FROM domains WHERE name=$1
-        """, domain, source, json.dumps(data), confidence, datetime.utcnow())
+            INSERT INTO enrichments (domain_id, source, status, data, error, confidence_score, created_at)
+            SELECT id, $2, $3, $4, $5, $6, $7 FROM domains WHERE name=$1
+        """, domain, source, status, json.dumps(data) if data else None, error, confidence, datetime.utcnow())
 
         await log_audit(conn, "enrichment_added", "domain", domain, f"source={source}")
+        log.info("enrichment_recorded", domain=domain, source=source, status=status)
 
     finally:
         await conn.close()
+
 
 async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
     """
@@ -76,16 +117,17 @@ async def get_domain_enrichments(domain: str) -> List[Dict[str, Any]]:
     conn = await get_conn()
     try:
         rows = await conn.fetch("""
-            SELECT e.source, e.data, e.confidence_score, e.timestamp
+            SELECT e.source, e.status, e.data, e.error, e.confidence_score, e.created_at
             FROM enrichments e
             JOIN domains d ON d.id = e.domain_id
             WHERE d.name = $1
-            ORDER BY e.timestamp DESC
+            ORDER BY e.created_at DESC
         """, domain)
 
         return [dict(row) for row in rows]
     finally:
         await conn.close()
+
 
 async def get_domains_by_source(source: str, limit: int = 100) -> List[Dict[str, Any]]:
     """
@@ -112,6 +154,7 @@ async def get_domains_by_source(source: str, limit: int = 100) -> List[Dict[str,
     finally:
         await conn.close()
 
+
 async def log_audit(conn: asyncpg.Connection, operation: str, entity_type: str,
                     entity_value: str, user_context: str, metadata: Optional[Dict] = None) -> None:
     """
@@ -130,11 +173,12 @@ async def log_audit(conn: asyncpg.Connection, operation: str, entity_type: str,
             INSERT INTO audit_log (operation, entity_type, entity_value, user_context, metadata, timestamp)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, operation, entity_type, entity_value, user_context,
-             json.dumps(metadata or {}), datetime.utcnow())
+            json.dumps(metadata or {}), datetime.utcnow())
+
 
 async def record_api_usage(api_name: str, endpoint: str,
-                          rate_limit_remaining: Optional[int] = None,
-                          reset_time: Optional[datetime] = None) -> None:
+                           rate_limit_remaining: Optional[int] = None,
+                           reset_time: Optional[datetime] = None) -> None:
     """
     Record API usage for rate limiting tracking.
 

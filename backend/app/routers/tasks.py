@@ -86,6 +86,12 @@ class EnrichmentRequest(BaseModel):
                 raise ValueError(f'Unknown enrichment source: {source}. Allowed: {", ".join(allowed_sources)}')
 
         return [s.lower().strip() for s in v]
+    @field_validator("domain")
+    @classmethod
+    def validate_domain(cls, v):
+        """Validate and normalize domain input."""
+        return DomainIn(domain=v).domain
+
 
 class BulkCollectionRequest(BaseModel):
     """Request model for bulk domain collection."""
@@ -93,35 +99,12 @@ class BulkCollectionRequest(BaseModel):
     source: str = Field(default="bulk_api", description="Source identifier", max_length=100)
     enrich: bool = Field(default=True, description="Whether to run enrichment")
 
-    @validator('domains')
+    @field_validator("domains")
+    @classmethod
     def validate_domains(cls, v):
-        """Validate all domains in bulk request."""
-        validated = []
+        """Validate and normalize all domain inputs."""
+        return [DomainIn(domain=d).domain for d in v]
 
-        for domain in v:
-            domain = domain.lower().strip()
-
-            if not DOMAIN_REGEX.match(domain):
-                raise ValueError(f'Invalid domain format: {domain}')
-
-            if any(char in domain for char in ['<', '>', '"', "'", '\\', ';', '|', '&', '$', '`']):
-                raise ValueError(f'Domain contains invalid characters: {domain}')
-
-            if domain.endswith(('.local', '.internal', '.localhost')):
-                raise ValueError(f'Private/internal domain not allowed: {domain}')
-
-            validated.append(domain)
-
-        # Remove duplicates
-        return list(set(validated))
-
-    @validator('source')
-    def validate_source(cls, v):
-        """Validate source string."""
-        v = v.strip()
-        if not re.match(r'^[a-zA-Z0-9_\-]+$', v):
-            raise ValueError('Source must contain only alphanumeric characters, underscores, and hyphens')
-        return v
 
 @router.post("/collect")
 @limiter.limit("10/minute")
@@ -141,13 +124,7 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
     Returns:
         Task status and domain information
     """
-    logger.info(
-        "collection_started",
-        domain=request.domain,
-        source=request.source,
-        enrich=request.enrich,
-        security_event=True
-    )
+    log.info("collection_request", domain=request.domain, source=request.source, enrich=request.enrich)
 
     # Add collection task to background
     background_tasks.add_task(collect_domain, request.domain, request.source)
@@ -169,6 +146,7 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
         "message": f"Collection started for {request.domain}"
     }
 
+
 @router.post("/enrich")
 @limiter.limit("10/minute")
 async def start_enrichment(request: EnrichmentRequest, background_tasks: BackgroundTasks):
@@ -184,12 +162,7 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
     Returns:
         Enrichment task status
     """
-    logger.info(
-        "enrichment_started",
-        domain=request.domain,
-        sources=request.sources,
-        security_event=True
-    )
+    log.info("enrichment_request", domain=request.domain, sources=request.sources)
 
     # Add enrichment tasks based on requested sources
     if "virustotal" in request.sources:
@@ -205,6 +178,7 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
         "sources": request.sources,
         "message": f"Enrichment started for {request.domain}"
     }
+
 
 @router.post("/collect/bulk")
 @limiter.limit("2/minute")
@@ -224,14 +198,13 @@ async def bulk_collection(request: BulkCollectionRequest, background_tasks: Back
     Returns:
         Bulk task status
     """
-    logger.warning(
-        "bulk_collection_started",
-        domain_count=len(request.domains),
-        source=request.source,
-        enrich=request.enrich,
-        domains_sample=request.domains[:5],  # Log first 5 for audit
-        security_event=True
-    )
+    if len(request.domains) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 100 domains per bulk request. Use multiple requests for larger sets."
+        )
+
+    log.info("bulk_collection_request", domain_count=len(request.domains), source=request.source, enrich=request.enrich)
 
     for domain in request.domains:
         background_tasks.add_task(collect_domain, domain, request.source)
@@ -245,6 +218,7 @@ async def bulk_collection(request: BulkCollectionRequest, background_tasks: Back
         "enrichment_enabled": request.enrich,
         "message": f"Bulk collection started for {len(request.domains)} domains"
     }
+
 
 @router.get("/status")
 async def get_task_status():

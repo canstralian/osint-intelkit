@@ -29,6 +29,7 @@ SCHEDULE_TYPE = os.getenv("OSINT_SCHEDULE_TYPE", "interval")  # "interval" or "c
 SCHEDULE_CRON = os.getenv("OSINT_SCHEDULE_CRON", "0 2 * * *")  # Default: 2 AM UTC daily
 SCHEDULE_TIMEZONE = os.getenv("OSINT_SCHEDULE_TIMEZONE", "UTC")
 
+
 def create_deployment():
     """
     Create and register a Prefect deployment for the OSINT flow.
@@ -74,6 +75,7 @@ def create_deployment():
     logger.info(f"  Tags: {deployment.tags}")
 
     return deployment
+
 
 def deploy():
     """
@@ -127,6 +129,7 @@ def deploy():
         logger.error("Check that Prefect server is running and accessible")
         raise
 
+
 def create_additional_deployments():
     """
     Create additional deployments for different schedules or configurations.
@@ -163,6 +166,7 @@ def create_additional_deployments():
         )
         daily_deployment.apply()
         logger.info("✅ Daily comprehensive scan deployment created")
+
 
 if __name__ == "__main__":
     # Deploy main OSINT flow

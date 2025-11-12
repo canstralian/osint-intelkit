@@ -1,7 +1,11 @@
 """Neo4j graph database connection and operations."""
-from neo4j import GraphDatabase, AsyncGraphDatabase
+from neo4j import GraphDatabase
 import os
+import structlog
 from typing import Optional, Dict, List
+
+log = structlog.get_logger()
+
 
 class Neo4jConnection:
     """Neo4j database connection manager."""
@@ -24,12 +28,15 @@ class Neo4jConnection:
             self.driver.close()
             self.driver = None
 
+
 # Global connection instance
 _neo4j_conn = Neo4jConnection()
+
 
 def get_driver():
     """Get Neo4j driver instance."""
     return _neo4j_conn.connect()
+
 
 async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
     """
@@ -39,18 +46,23 @@ async def link_domain(domain: str, metadata: Optional[Dict] = None) -> None:
         domain: Domain name
         metadata: Optional metadata to attach to the node
     """
-    driver = get_driver()
-    with driver.session() as session:
-        session.run(
-            """
-            MERGE (d:Domain {name: $domain})
-            ON CREATE SET d.created = timestamp(), d.metadata = $metadata
-            ON MATCH SET d.last_seen = timestamp(), d.metadata = $metadata
-            RETURN d
-            """,
-            domain=domain,
-            metadata=metadata or {}
-        )
+    try:
+        driver = get_driver()
+        with driver.session() as session:
+            session.run(
+                """
+                MERGE (d:Domain {name: $domain})
+                ON CREATE SET d.created = timestamp(), d.metadata = $metadata
+                ON MATCH SET d.last_seen = timestamp(), d.metadata = $metadata
+                RETURN d
+                """,
+                domain=domain,
+                metadata=metadata or {}
+            )
+            log.info("neo4j_merge_domain", domain=domain)
+    except Exception as e:
+        log.warning("neo4j_error", domain=domain, operation="link_domain", error=str(e))
+
 
 async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") -> None:
     """
@@ -75,6 +87,7 @@ async def link_domain_to_ip(domain: str, ip: str, resolution_type: str = "A") ->
             ip=ip,
             resolution_type=resolution_type
         )
+
 
 async def link_domain_to_certificate(domain: str, cert_fingerprint: str,
                                      cert_data: Optional[Dict] = None) -> None:
@@ -102,6 +115,7 @@ async def link_domain_to_certificate(domain: str, cert_fingerprint: str,
             cert_data=cert_data or {}
         )
 
+
 async def link_domain_to_organization(domain: str, org_name: str) -> None:
     """
     Create relationship between domain and organization.
@@ -123,6 +137,7 @@ async def link_domain_to_organization(domain: str, org_name: str) -> None:
             domain=domain,
             org_name=org_name
         )
+
 
 async def add_threat_intel_tag(domain: str, tag: str, source: str,
                                confidence: float = 0.5) -> None:
@@ -151,6 +166,7 @@ async def add_threat_intel_tag(domain: str, tag: str, source: str,
             source=source,
             confidence=confidence
         )
+
 
 async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
     """
@@ -199,6 +215,7 @@ async def get_domain_graph(domain: str, depth: int = 2) -> Dict:
             "nodes": nodes,
             "relationships": relationships
         }
+
 
 async def find_related_domains(domain: str, min_connections: int = 2) -> List[str]:
     """

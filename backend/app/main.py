@@ -6,21 +6,15 @@ FastAPI application for orchestrating OSINT collection and enrichment.
 IMPORTANT: This system is designed for authorized security testing,
 defensive security, threat intelligence, and educational purposes only.
 """
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import os
-import asyncio
 
 from .routers import tasks, domains, graph
-from .config.logging import configure_structured_logging, get_logger
-from .middleware.correlation_id import CorrelationIdMiddleware
-from .middleware.security import SecurityHeadersMiddleware, SecurityMonitoringMiddleware
-from .middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from .logging_config import configure_logging
+from .errors import ErrorEnvelopeMiddleware
 
 # Configure structured logging
-configure_structured_logging()
-logger = get_logger(__name__)
+log = configure_logging()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -73,14 +67,19 @@ app.add_middleware(
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 
+# Error handling middleware
+app.add_middleware(ErrorEnvelopeMiddleware)
+
 # Include routers
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(domains.router, prefix="/domains", tags=["domains"])
 app.include_router(graph.router, prefix="/graph", tags=["graph"])
 
+
 @app.get("/")
 async def root():
     """API health check and status."""
+    log.info("health_check")
     return {
         "status": "online",
         "service": "OSINT IntelKit",
@@ -92,6 +91,7 @@ async def root():
             "graph": "/graph"
         }
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -163,28 +163,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup_event():
     """Execute startup tasks."""
-    logger.info(
-        "application_startup",
-        service="OSINT IntelKit",
-        version="1.0.0",
-        environment=os.getenv("ENVIRONMENT", "production"),
-        log_level=os.getenv("LOG_LEVEL", "INFO")
-    )
-    logger.warning(
-        "ethical_use_reminder",
-        message="IMPORTANT: Use only for authorized targets and ethical purposes",
-        security_event=True
-    )
+    log.info("osint_api_startup")
+    log.warning("authorized_use_only", message="Use only for authorized targets and ethical purposes")
 
-    # Log security configuration status
-    logger.info(
-        "security_configuration",
-        rate_limiting=True,
-        security_headers=True,
-        cors_origins=os.getenv("CORS_ORIGINS", "*"),
-        structured_logging=True,
-        audit_logging=os.getenv("ENABLE_AUDIT_LOG", "true").lower() == "true"
-    )
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -198,3 +179,5 @@ async def shutdown_event():
         logger.info("database_connections_closed")
     except Exception as e:
         logger.error("error_closing_connections", error=str(e))
+    except Exception as e:
+        log.warning("neo4j_close_failed", error=str(e))

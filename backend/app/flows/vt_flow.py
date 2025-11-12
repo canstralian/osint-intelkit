@@ -13,7 +13,6 @@ Scheduling options:
 - Event-driven triggers
 """
 import asyncio
-import logging
 import os
 from typing import List
 from datetime import timedelta, datetime
@@ -25,8 +24,11 @@ from app.db.postgres import save_domain
 from app.workers.vt_enricher import vt_enrich_domain
 from app.workers.collector import collect_domain, collect_subdomains_passive
 from app.db.neo4j import link_domain
+from app.security import DomainIn
 
-logger = logging.getLogger(__name__)
+# Configure structured logging for Prefect flows
+from app.logging_config import configure_logging
+log = configure_logging()
 
 # Seed domains for scheduled collection
 # IMPORTANT: Only include authorized targets
@@ -35,21 +37,33 @@ DEFAULT_SEED_DOMAINS = [
     "example.com",  # Replace with authorized targets
 ]
 
+
 def get_seed_domains() -> List[str]:
     """
     Get seed domains from environment variable or default list.
+    Validates and normalizes all domains.
 
     Returns:
         List of authorized domain names to collect
     """
     env_domains = os.getenv("OSINT_SEED_DOMAINS", "").strip()
     if env_domains:
-        domains = [d.strip() for d in env_domains.split(",") if d.strip()]
-        logger.info(f"Using {len(domains)} seed domains from environment")
-        return domains
+        raw_domains = [d.strip() for d in env_domains.split(",") if d.strip()]
     else:
-        logger.info(f"Using {len(DEFAULT_SEED_DOMAINS)} default seed domains")
-        return DEFAULT_SEED_DOMAINS
+        raw_domains = DEFAULT_SEED_DOMAINS
+
+    # Validate and normalize domains
+    validated_domains = []
+    for domain in raw_domains:
+        try:
+            validated = DomainIn(domain=domain).domain
+            validated_domains.append(validated)
+        except Exception as e:
+            log.warning("seed_domain_invalid", domain=domain, error=str(e))
+
+    log.info("seed_domains_loaded", count=len(validated_domains), source="env" if env_domains else "default")
+    return validated_domains
+
 
 @task(
     name="collect-seed-domains",
@@ -69,7 +83,7 @@ async def collect_seed_domains(domains: List[str]) -> List[str]:
     Returns:
         List of successfully collected domains
     """
-    logger.info(f"[Prefect Task] Collecting {len(domains)} seed domains")
+    log.info("prefect_collect_seed_start", domain_count=len(domains))
 
     collected = []
     for domain in domains:
@@ -79,10 +93,11 @@ async def collect_seed_domains(domains: List[str]) -> List[str]:
                 collected.append(domain)
                 await link_domain(domain)
         except Exception as e:
-            logger.error(f"[Prefect Task] Failed to collect {domain}: {e}")
+            log.error("prefect_collect_seed_failed", domain=domain, error=str(e))
 
-    logger.info(f"[Prefect Task] Successfully collected {len(collected)}/{len(domains)} domains")
+    log.info("prefect_collect_seed_complete", collected=len(collected), total=len(domains))
     return collected
+
 
 @task(
     name="vt-enrich-domains",
@@ -100,7 +115,7 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
     Returns:
         List of enrichment results
     """
-    logger.info(f"[Prefect Task] Enriching {len(domains)} domains with VirusTotal")
+    log.info("prefect_vt_enrich_start", domain_count=len(domains))
 
     results = []
     for domain in domains:
@@ -122,7 +137,7 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
             await asyncio.sleep(15)  # 4 req/min = 15s between requests
 
         except Exception as e:
-            logger.error(f"[Prefect Task] Failed to enrich {domain}: {e}")
+            log.error("prefect_vt_enrich_failed", domain=domain, error=str(e))
             results.append({
                 "domain": domain,
                 "status": "error",
@@ -130,9 +145,10 @@ async def vt_enrich_all(domains: List[str]) -> List[dict]:
             })
 
     success_count = sum(1 for r in results if r["status"] == "success")
-    logger.info(f"[Prefect Task] Successfully enriched {success_count}/{len(domains)} domains")
+    log.info("prefect_vt_enrich_complete", success=success_count, total=len(domains))
 
     return results
+
 
 @task(
     name="collect-subdomains",
@@ -150,7 +166,7 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
     Returns:
         Dictionary mapping domains to their subdomains
     """
-    logger.info(f"[Prefect Task] Collecting subdomains for {len(domains)} domains")
+    log.info("prefect_subdomain_collect_start", domain_count=len(domains))
 
     subdomain_map = {}
     for domain in domains:
@@ -164,13 +180,14 @@ async def collect_subdomains_task(domains: List[str]) -> dict:
                 await link_domain(subdomain)
 
         except Exception as e:
-            logger.error(f"[Prefect Task] Failed subdomain collection for {domain}: {e}")
+            log.error("prefect_subdomain_collect_failed", domain=domain, error=str(e))
             subdomain_map[domain] = []
 
     total_subdomains = sum(len(subs) for subs in subdomain_map.values())
-    logger.info(f"[Prefect Task] Discovered {total_subdomains} total subdomains")
+    log.info("prefect_subdomain_collect_complete", total_subdomains=total_subdomains)
 
     return subdomain_map
+
 
 @flow(
     name="vt-osint-flow",
@@ -205,11 +222,7 @@ def scheduled_vt_osint(domains: List[str] = None):
         domains = get_seed_domains()
 
     start_time = datetime.utcnow()
-    logger.info("=" * 60)
-    logger.info(f"[Flow] OSINT Collection Flow Started")
-    logger.info(f"[Flow] Start Time: {start_time.isoformat()}")
-    logger.info(f"[Flow] Target Domains: {len(domains)}")
-    logger.info("=" * 60)
+    log.info("prefect_flow_start", start_time=start_time.isoformat(), domain_count=len(domains))
 
     # Run async tasks
     asyncio.run(run_flow_async(domains))
@@ -217,11 +230,8 @@ def scheduled_vt_osint(domains: List[str] = None):
     end_time = datetime.utcnow()
     duration = (end_time - start_time).total_seconds()
 
-    logger.info("=" * 60)
-    logger.info(f"[Flow] OSINT Collection Flow Completed")
-    logger.info(f"[Flow] End Time: {end_time.isoformat()}")
-    logger.info(f"[Flow] Duration: {duration:.2f} seconds")
-    logger.info("=" * 60)
+    log.info("prefect_flow_complete", end_time=end_time.isoformat(), duration_seconds=duration)
+
 
 async def run_flow_async(domains: List[str]):
     """
@@ -234,7 +244,7 @@ async def run_flow_async(domains: List[str]):
     collected_domains = await collect_seed_domains.fn(domains)
 
     if not collected_domains:
-        logger.warning("[Flow] No domains collected, skipping enrichment")
+        log.warning("prefect_flow_no_domains")
         return
 
     # Step 2: Discover subdomains (passive only)
@@ -248,12 +258,15 @@ async def run_flow_async(domains: List[str]):
     enrichment_results = await vt_enrich_all.fn(list(all_domains))
 
     # Log summary
-    logger.info(f"[Flow Summary]")
-    logger.info(f"  Collected domains: {len(collected_domains)}")
-    logger.info(f"  Discovered subdomains: {sum(len(s) for s in subdomain_map.values())}")
-    logger.info(f"  Enriched domains: {len(enrichment_results)}")
+    total_subdomains = sum(len(s) for s in subdomain_map.values())
+    log.info("prefect_flow_summary",
+             collected_domains=len(collected_domains),
+             discovered_subdomains=total_subdomains,
+             enriched_domains=len(enrichment_results))
 
 # Alternative: Scheduled deployment
+
+
 def deploy_scheduled():
     """
     Deploy the flow with a schedule.
@@ -272,7 +285,8 @@ def deploy_scheduled():
     )
 
     deployment.apply()
-    logger.info("Deployment created: OSINT pipeline will run every 6 hours")
+    log.info("prefect_deployment_created", interval_hours=6)
+
 
 # Entry point for direct execution
 if __name__ == "__main__":
