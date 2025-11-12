@@ -1,36 +1,91 @@
 """Task orchestration endpoints for OSINT collection and enrichment."""
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, Field, field_validator
-from typing import List
-import structlog
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from pydantic import BaseModel, Field, validator
+from typing import List, Optional
+import re
 
 from ..workers.collector import collect_domain
 from ..workers.vt_enricher import vt_enrich_domain
-from ..security import DomainIn
+from ..config.logging import get_logger
+from ..middleware.rate_limit import limiter
 
-log = structlog.get_logger()
+logger = get_logger(__name__)
 
 router = APIRouter()
 
+# Domain validation regex
+DOMAIN_REGEX = re.compile(
+    r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+)
 
 class CollectionRequest(BaseModel):
     """Request model for domain collection."""
-    domain: str = Field(..., description="Domain name to collect intelligence on")
-    source: str = Field(default="api", description="Source identifier for provenance")
+    domain: str = Field(..., description="Domain name to collect intelligence on", max_length=253)
+    source: str = Field(default="api", description="Source identifier for provenance", max_length=100)
     enrich: bool = Field(default=True, description="Whether to run enrichment after collection")
 
-    @field_validator("domain")
-    @classmethod
+    @validator('domain')
     def validate_domain(cls, v):
-        """Validate and normalize domain input."""
-        return DomainIn(domain=v).domain
+        """Validate domain name format and security."""
+        v = v.lower().strip()
 
+        # Check for valid domain format
+        if not DOMAIN_REGEX.match(v):
+            raise ValueError('Invalid domain name format')
+
+        # Security: Prevent potential injection attacks
+        if any(char in v for char in ['<', '>', '"', "'", '\\', ';', '|', '&', '$', '`']):
+            raise ValueError('Domain contains invalid characters')
+
+        # Prevent private/internal domains (optional security measure)
+        if v.endswith(('.local', '.internal', '.localhost')):
+            raise ValueError('Private/internal domains are not allowed')
+
+        return v
+
+    @validator('source')
+    def validate_source(cls, v):
+        """Validate source string."""
+        v = v.strip()
+
+        # Alphanumeric, underscore, hyphen only
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', v):
+            raise ValueError('Source must contain only alphanumeric characters, underscores, and hyphens')
+
+        return v
 
 class EnrichmentRequest(BaseModel):
     """Request model for domain enrichment."""
-    domain: str = Field(..., description="Domain name to enrich")
+    domain: str = Field(..., description="Domain name to enrich", max_length=253)
     sources: List[str] = Field(default=["virustotal"], description="Enrichment sources to use")
 
+    @validator('domain')
+    def validate_domain(cls, v):
+        """Validate domain name format and security."""
+        v = v.lower().strip()
+
+        if not DOMAIN_REGEX.match(v):
+            raise ValueError('Invalid domain name format')
+
+        if any(char in v for char in ['<', '>', '"', "'", '\\', ';', '|', '&', '$', '`']):
+            raise ValueError('Domain contains invalid characters')
+
+        if v.endswith(('.local', '.internal', '.localhost')):
+            raise ValueError('Private/internal domains are not allowed')
+
+        return v
+
+    @validator('sources')
+    def validate_sources(cls, v):
+        """Validate enrichment sources."""
+        allowed_sources = ['virustotal', 'shodan', 'censys', 'securitytrails']
+
+        for source in v:
+            source_clean = source.lower().strip()
+            if source_clean not in allowed_sources:
+                raise ValueError(f'Unknown enrichment source: {source}. Allowed: {", ".join(allowed_sources)}')
+
+        return [s.lower().strip() for s in v]
     @field_validator("domain")
     @classmethod
     def validate_domain(cls, v):
@@ -40,8 +95,8 @@ class EnrichmentRequest(BaseModel):
 
 class BulkCollectionRequest(BaseModel):
     """Request model for bulk domain collection."""
-    domains: List[str] = Field(..., description="List of domains to collect")
-    source: str = Field(default="bulk_api", description="Source identifier")
+    domains: List[str] = Field(..., description="List of domains to collect", max_items=100, min_items=1)
+    source: str = Field(default="bulk_api", description="Source identifier", max_length=100)
     enrich: bool = Field(default=True, description="Whether to run enrichment")
 
     @field_validator("domains")
@@ -52,12 +107,15 @@ class BulkCollectionRequest(BaseModel):
 
 
 @router.post("/collect")
+@limiter.limit("10/minute")
 async def start_collection(request: CollectionRequest, background_tasks: BackgroundTasks):
     """
     Start OSINT collection for a domain.
 
     This endpoint initiates passive collection of publicly available information
     about a domain. Use only for authorized targets.
+
+    Rate limit: 10 requests per minute
 
     Args:
         request: Collection request parameters
@@ -74,6 +132,11 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
     # Optionally enrich after collection
     if request.enrich:
         background_tasks.add_task(vt_enrich_domain, request.domain)
+        logger.info(
+            "enrichment_queued",
+            domain=request.domain,
+            source="virustotal"
+        )
 
     return {
         "status": "started",
@@ -85,9 +148,12 @@ async def start_collection(request: CollectionRequest, background_tasks: Backgro
 
 
 @router.post("/enrich")
+@limiter.limit("10/minute")
 async def start_enrichment(request: EnrichmentRequest, background_tasks: BackgroundTasks):
     """
     Start enrichment for a domain using threat intelligence sources.
+
+    Rate limit: 10 requests per minute
 
     Args:
         request: Enrichment request parameters
@@ -115,11 +181,15 @@ async def start_enrichment(request: EnrichmentRequest, background_tasks: Backgro
 
 
 @router.post("/collect/bulk")
+@limiter.limit("2/minute")
 async def bulk_collection(request: BulkCollectionRequest, background_tasks: BackgroundTasks):
     """
     Start OSINT collection for multiple domains.
 
     IMPORTANT: Use rate limiting and ensure all targets are authorized.
+
+    Rate limit: 2 requests per minute (strict due to bulk nature)
+    Maximum: 100 domains per request
 
     Args:
         request: Bulk collection request
@@ -158,10 +228,13 @@ async def get_task_status():
     Returns:
         Task queue status and statistics
     """
-    # TODO: Implement actual task tracking
+    logger.debug("task_status_check")
+
+    # TODO: Implement actual task tracking with Redis or database
     return {
         "status": "operational",
         "active_tasks": 0,
         "completed_tasks": 0,
-        "failed_tasks": 0
+        "failed_tasks": 0,
+        "message": "Task tracking not yet implemented - check Prefect UI for flow status"
     }

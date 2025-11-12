@@ -8,10 +8,7 @@ IMPORTANT:
 """
 import os
 import aiohttp
-import asyncio
-import structlog
-from datetime import datetime, timedelta
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
+from datetime import datetime
 from typing import Optional, Dict
 from ..db.postgres import add_enrichment, last_enrichment
 
@@ -47,6 +44,14 @@ async def _fetch(session: aiohttp.ClientSession, url: str):
         return await resp.json()
 
 
+    # Enforce rate limit
+    if _vt_request_count >= VT_RATE_LIMIT:
+        wait_time = 60 - (current_time - _last_vt_request).seconds
+        if wait_time > 0:
+            logger.info("vt_rate_limit_reached", wait_seconds=wait_time, rate_limit=VT_RATE_LIMIT)
+            await asyncio.sleep(wait_time)
+            _vt_request_count = 0
+            _last_vt_request = datetime.utcnow()
 @retry(
     retry=retry_if_exception_type((VTQuota, VTError)),
     wait=wait_exponential_jitter(initial=2, max=60),
