@@ -245,3 +245,56 @@ async def find_related_domains(domain: str, min_connections: int = 2) -> List[st
         )
 
         return [record["related_domain"] for record in result]
+
+
+async def get_graph_statistics() -> Dict:
+    """
+    Get statistics about the graph database.
+
+    Returns:
+        Dictionary containing counts of entities and relationships
+    """
+    driver = get_driver()
+    with driver.session() as session:
+        # Query for node counts by label
+        result = session.run(
+            """
+            MATCH (n)
+            WITH labels(n) as labels
+            UNWIND labels as label
+            RETURN label, count(*) as count
+            """
+        )
+
+        # Initialize counters
+        stats = {
+            "total_domains": 0,
+            "total_ips": 0,
+            "total_certificates": 0,
+            "total_organizations": 0,
+            "total_threat_tags": 0
+        }
+
+        # Map label names to stat keys
+        label_mapping = {
+            "Domain": "total_domains",
+            "IP": "total_ips",
+            "Certificate": "total_certificates",
+            "Organization": "total_organizations",
+            "ThreatTag": "total_threat_tags"
+        }
+
+        # Populate node counts
+        for record in result:
+            label = record["label"]
+            count = record["count"]
+            if label in label_mapping:
+                stats[label_mapping[label]] = count
+
+        # Query for total relationship count
+        rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as total")
+        stats["total_relationships"] = rel_result.single()["total"]
+
+        log.info("neo4j_stats_query", stats=stats)
+
+        return stats

@@ -4,7 +4,8 @@ import logging
 
 from ..db.neo4j import (
     get_domain_graph,
-    find_related_domains
+    find_related_domains,
+    get_graph_statistics
 )
 
 logger = logging.getLogger(__name__)
@@ -87,11 +88,10 @@ async def get_graph_stats():
     Returns:
         Statistics about entities and relationships
     """
-    # TODO: Implement actual stats query
-    return {
-        "total_domains": 0,
-        "total_ips": 0,
-        "total_certificates": 0,
-        "total_organizations": 0,
-        "total_relationships": 0
-    }
+    try:
+        stats = await get_graph_statistics()
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error retrieving graph statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
