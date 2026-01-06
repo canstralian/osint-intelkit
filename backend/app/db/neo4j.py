@@ -247,7 +247,7 @@ async def find_related_domains(domain: str, min_connections: int = 2) -> List[st
         return [record["related_domain"] for record in result]
 
 
-async def get_graph_statistics() -> Dict:
+async def get_graph_statistics() -> Dict[str, int]:
     """
     Get statistics about the graph database.
 
