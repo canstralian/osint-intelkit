@@ -260,9 +260,8 @@ async def get_graph_statistics() -> Dict[str, int]:
         result = session.run(
             """
             MATCH (n)
-            WITH labels(n) as labels
-            UNWIND labels as label
-            RETURN label, count(*) as count
+            UNWIND labels(n) as label
+            RETURN label, count(DISTINCT n) as count
             """
         )
 
