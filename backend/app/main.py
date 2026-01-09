@@ -6,15 +6,24 @@ FastAPI application for orchestrating OSINT collection and enrichment.
 IMPORTANT: This system is designed for authorized security testing,
 defensive security, threat intelligence, and educational purposes only.
 """
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from .routers import tasks, domains, graph
+from .routers import tasks, domains, graph, github_search
 from .logging_config import configure_logging
 from .errors import ErrorEnvelopeMiddleware
+from .middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from .middleware.security import SecurityHeadersMiddleware, SecurityMonitoringMiddleware
+from .middleware.correlation_id import CorrelationIdMiddleware
+from .config.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Configure structured logging
 log = configure_logging()
+logger = get_logger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -74,6 +83,7 @@ app.add_middleware(ErrorEnvelopeMiddleware)
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(domains.router, prefix="/domains", tags=["domains"])
 app.include_router(graph.router, prefix="/graph", tags=["graph"])
+app.include_router(github_search.router, prefix="/github", tags=["github-search"])
 
 
 @app.get("/")
@@ -88,7 +98,8 @@ async def root():
             "docs": "/docs",
             "tasks": "/tasks",
             "domains": "/domains",
-            "graph": "/graph"
+            "graph": "/graph",
+            "github": "/github"
         }
     }
 
