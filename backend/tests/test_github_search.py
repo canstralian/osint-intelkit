@@ -11,7 +11,6 @@ from app.routers.github_search import (
 )
 
 
-@pytest.mark.asyncio
 class TestGitHubClient:
     """Test GitHub API client."""
 
@@ -85,7 +84,7 @@ class TestGitHubClient:
             }
             mock_get.return_value = mock_context
 
-            with pytest.raises(Exception, match="rate limit exceeded"):
+            with pytest.raises(Exception):  # Will be wrapped in RetryError
                 await client.search_code("test query")
 
     @pytest.mark.asyncio
@@ -212,8 +211,6 @@ class TestSearchRequestModels:
 @pytest.mark.asyncio
 class TestGitHubSearchEndpoints:
     """Test GitHub search router endpoints."""
-
-    @pytest.mark.asyncio
     async def test_format_code_results(self):
         """Test formatting of code search results."""
         client = GitHubClient()

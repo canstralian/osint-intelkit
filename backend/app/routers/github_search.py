@@ -7,7 +7,7 @@ Provides search capabilities for:
 - Past implementations and examples
 """
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 import re
 
@@ -32,7 +32,8 @@ class CodeSearchRequest(BaseModel):
     per_page: int = Field(default=30, description="Results per page", ge=1, le=100)
     page: int = Field(default=1, description="Page number", ge=1)
 
-    @validator('query')
+    @field_validator('query')
+    @classmethod
     def validate_query(cls, v):
         """Validate and sanitize search query."""
         v = v.strip()
@@ -43,7 +44,8 @@ class CodeSearchRequest(BaseModel):
         
         return v
 
-    @validator('language')
+    @field_validator('language')
+    @classmethod
     def validate_language(cls, v):
         """Validate programming language."""
         if v is None:
@@ -57,7 +59,8 @@ class CodeSearchRequest(BaseModel):
         
         return v
 
-    @validator('repo')
+    @field_validator('repo')
+    @classmethod
     def validate_repo(cls, v):
         """Validate repository format."""
         if v is None:
@@ -71,7 +74,8 @@ class CodeSearchRequest(BaseModel):
         
         return v
 
-    @validator('org')
+    @field_validator('org')
+    @classmethod
     def validate_org(cls, v):
         """Validate organization name."""
         if v is None:
@@ -95,7 +99,8 @@ class RepoSearchRequest(BaseModel):
     per_page: int = Field(default=30, description="Results per page", ge=1, le=100)
     page: int = Field(default=1, description="Page number", ge=1)
 
-    @validator('query')
+    @field_validator('query')
+    @classmethod
     def validate_query(cls, v):
         """Validate search query."""
         v = v.strip()
@@ -103,7 +108,8 @@ class RepoSearchRequest(BaseModel):
             raise ValueError('Query contains invalid characters')
         return v
 
-    @validator('sort')
+    @field_validator('sort')
+    @classmethod
     def validate_sort(cls, v):
         """Validate sort field."""
         allowed_sorts = ['stars', 'forks', 'updated', 'help-wanted-issues']
@@ -111,7 +117,8 @@ class RepoSearchRequest(BaseModel):
             raise ValueError(f'Sort must be one of: {", ".join(allowed_sorts)}')
         return v
 
-    @validator('order')
+    @field_validator('order')
+    @classmethod
     def validate_order(cls, v):
         """Validate sort order."""
         if v not in ['asc', 'desc']:
@@ -127,7 +134,8 @@ class DocumentationSearchRequest(BaseModel):
     per_page: int = Field(default=30, description="Results per page", ge=1, le=100)
     page: int = Field(default=1, description="Page number", ge=1)
 
-    @validator('query')
+    @field_validator('query')
+    @classmethod
     def validate_query(cls, v):
         """Validate search query."""
         v = v.strip()
