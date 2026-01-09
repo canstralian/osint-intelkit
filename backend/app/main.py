@@ -19,8 +19,6 @@ from .middleware.security import SecurityHeadersMiddleware, SecurityMonitoringMi
 from .middleware.correlation_id import CorrelationIdMiddleware
 from .config.logging import get_logger
 
-logger = get_logger(__name__)
-
 # Configure structured logging
 log = configure_logging()
 logger = get_logger(__name__)
