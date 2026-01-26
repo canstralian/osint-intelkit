@@ -7,7 +7,7 @@ python-dotenv==1.0.1
 prefect==3.0.3
 pydantic==2.6.0
 pydantic-settings==2.1.0
-python-multipart==0.0.18
+python-multipart==0.0.22
 redis==5.0.1
 structlog==24.1.0
 python-json-logger==2.0.7
