@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Update npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday" # Specificity helps avoid Monday morning chaos
+    open-pull-requests-limit: 10
+
+  # Update GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
