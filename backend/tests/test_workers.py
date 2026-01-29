@@ -26,8 +26,9 @@ class TestCollectorWorker:
 
         result = await collect_from_crtsh("example.com")
 
-        assert isinstance(result, list)
-        assert len(result) >= 0
+        assert isinstance(result, dict)
+        assert result["source"] == "crt.sh"
+        assert "certificates" in result
 
     async def test_collect_domain(self, sample_domain):
         """Test main collect_domain function."""
