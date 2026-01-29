@@ -164,7 +164,7 @@ For answers to common questions about this code of conduct, see the FAQ at
 
 For questions about this Code of Conduct or to report violations:
 
-* **Email:** security@yourdomain.com
+* **Email:** osint-intelkit-security@protonmail.com
 * **GitHub Issues:** https://github.com/canstralian/osint-intelkit/issues (for general questions only, not violations)
 
 ## Acknowledgment
