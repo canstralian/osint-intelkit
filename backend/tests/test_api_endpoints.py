@@ -1,12 +1,17 @@
-"""Tests for FastAPI endpoints."""
+"""Integration tests for FastAPI endpoints.
+
+These tests interact with actual services and are marked as integration tests.
+For unit tests with mocked dependencies, see test_api_endpoints_unit.py.
+"""
 
 import pytest
 from httpx import AsyncClient
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestHealthEndpoints:
-    """Test health check and status endpoints."""
+    """Integration tests for health check and status endpoints."""
 
     async def test_root_endpoint(self, async_client: AsyncClient):
         """Test root endpoint returns API status."""
@@ -27,9 +32,10 @@ class TestHealthEndpoints:
         assert data["status"] == "healthy"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestTaskEndpoints:
-    """Test task orchestration endpoints."""
+    """Integration tests for task orchestration endpoints."""
 
     async def test_collect_endpoint_structure(self, async_client: AsyncClient):
         """Test collect endpoint accepts valid requests."""
@@ -51,9 +57,10 @@ class TestTaskEndpoints:
         assert response.status_code in [200, 500]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDomainEndpoints:
-    """Test domain data retrieval endpoints."""
+    """Integration tests for domain data retrieval endpoints."""
 
     async def test_get_enrichments_endpoint(self, async_client: AsyncClient):
         """Test domain enrichments endpoint."""
@@ -67,9 +74,10 @@ class TestDomainEndpoints:
         assert response.status_code in [200, 404, 500]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestGraphEndpoints:
-    """Test graph query endpoints."""
+    """Integration tests for graph query endpoints."""
 
     async def test_get_graph_endpoint(self, async_client: AsyncClient):
         """Test graph retrieval endpoint."""

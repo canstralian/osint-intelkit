@@ -70,3 +70,37 @@ def mock_crtsh_response() -> list[dict]:
         {"name_value": "api.example.com"},
         {"name_value": "*.example.com"},
     ]
+
+
+@pytest.fixture
+def mock_enrichment_data() -> list[dict]:
+    """Return mock enrichment data for database queries."""
+    return [
+        {
+            "domain": "example.com",
+            "source": "virustotal",
+            "data": {"reputation": 0, "malicious": 2},
+            "timestamp": "2024-01-01T00:00:00",
+        }
+    ]
+
+
+@pytest.fixture
+def mock_graph_data() -> dict:
+    """Return mock graph data for Neo4j queries."""
+    return {
+        "nodes": [
+            {"id": "example.com", "type": "domain"},
+            {"id": "93.184.216.34", "type": "ip"},
+        ],
+        "relationships": [{"source": "example.com", "target": "93.184.216.34", "type": "RESOLVES_TO"}],
+    }
+
+
+@pytest.fixture
+def mock_related_domains() -> list[dict]:
+    """Return mock related domains data."""
+    return [
+        {"domain": "related.com", "shared_connections": 3},
+        {"domain": "similar.com", "shared_connections": 2},
+    ]
