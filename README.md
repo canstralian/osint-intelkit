@@ -33,6 +33,7 @@ A production-ready, scalable OSINT automation system built with FastAPI, Prefect
 - **Automated Workflows**: Scheduled collection via Prefect orchestration
 - **API-First Design**: RESTful API for integration with existing tools
 - **Audit Logging**: Complete provenance tracking for compliance
+- **GitHub Repository Search**: Search across repositories for code snippets, documentation, and similar implementations
 
 ### Architecture Highlights
 - **Microservices**: Decoupled collectors and enrichers
@@ -179,6 +180,42 @@ curl "http://localhost:8000/graph/example.com?depth=2"
 #### 6. Find Related Domains
 ```bash
 curl "http://localhost:8000/graph/example.com/related?min_connections=2"
+```
+
+#### 7. Search GitHub for Code Snippets
+```bash
+# Search for authentication implementations in Python
+curl "http://localhost:8000/github/search/code?query=authentication&language=python"
+
+# Search in a specific repository
+curl "http://localhost:8000/github/search/code?query=api&repo=owner/repository"
+```
+
+#### 8. Search GitHub Repositories
+```bash
+# Find OSINT-related repositories
+curl "http://localhost:8000/github/search/repositories?query=osint&language=python&sort=stars"
+
+# Search for FastAPI projects
+curl "http://localhost:8000/github/search/repositories?query=fastapi&sort=stars&order=desc"
+```
+
+#### 9. Search Documentation
+```bash
+# Find installation documentation
+curl "http://localhost:8000/github/search/documentation?query=installation+guide"
+
+# Search docs in specific repository
+curl "http://localhost:8000/github/search/documentation?query=api+authentication&repo=owner/repo"
+```
+
+#### 10. Find Similar Implementations
+```bash
+# Find JWT authentication implementations
+curl "http://localhost:8000/github/search/similar-implementations?feature=jwt+authentication&language=python"
+
+# Search for rate limiting patterns
+curl "http://localhost:8000/github/search/similar-implementations?feature=rate+limiting+fastapi"
 ```
 
 ### Interactive API Documentation
@@ -371,6 +408,11 @@ See `.env.example` for all configuration options:
 **API Keys:**
 - `API_KEY_VT`: VirusTotal API key
 - `API_KEY_SHODAN`: Shodan API key (optional)
+- `GITHUB_TOKEN`: GitHub personal access token (optional, but recommended for higher rate limits)
+  - Get a token at: https://github.com/settings/tokens
+  - Recommended scopes: `public_repo` (for public repository search)
+  - Unauthenticated requests: 10 requests/minute
+  - Authenticated requests: 30 requests/minute
 
 **Rate Limits:**
 - `VT_RATE_LIMIT`: VirusTotal requests per minute (default: 4)
