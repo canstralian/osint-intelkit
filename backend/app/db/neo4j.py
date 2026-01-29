@@ -256,15 +256,6 @@ async def get_graph_statistics() -> Dict[str, int]:
     """
     driver = get_driver()
     with driver.session() as session:
-        # Query for node counts by label
-        result = session.run(
-            """
-            MATCH (n)
-            UNWIND labels(n) as label
-            RETURN label, count(DISTINCT n) as count
-            """
-        )
-
         # Initialize counters
         stats = {
             "total_domains": 0,
@@ -274,7 +265,7 @@ async def get_graph_statistics() -> Dict[str, int]:
             "total_threat_tags": 0
         }
 
-        # Map label names to stat keys
+        # Query each label separately to avoid counting nodes with multiple labels multiple times
         label_mapping = {
             "Domain": "total_domains",
             "IP": "total_ips",
@@ -283,12 +274,12 @@ async def get_graph_statistics() -> Dict[str, int]:
             "ThreatTag": "total_threat_tags"
         }
 
-        # Populate node counts
-        for record in result:
-            label = record["label"]
-            count = record["count"]
-            if label in label_mapping:
-                stats[label_mapping[label]] = count
+        # Query each label separately
+        for label, stat_key in label_mapping.items():
+            result = session.run(f"MATCH (n:{label}) RETURN count(n) as count")
+            record = result.single()
+            if record:
+                stats[stat_key] = record["count"]
 
         # Query for total relationship count
         rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as total")
