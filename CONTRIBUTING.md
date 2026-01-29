@@ -339,7 +339,7 @@ def normalize_domain(value: str) -> str:
 
 **DO NOT** create public issues for security vulnerabilities.
 
-Instead, email: security@yourdomain.com
+Instead, email: security@your-project-email.com
 
 Include:
 - Description of vulnerability
