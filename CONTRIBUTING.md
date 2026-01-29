@@ -286,7 +286,7 @@ def normalize_domain(value: str) -> str:
         >>> normalize_domain("  EXAMPLE.COM  ")
         'example.com'
         >>> normalize_domain("münchen.de")
-        'xn--mnchen-3ya.de'
+        'xn--muenchen-3ya.de'
     """
     value = value.strip().lower()
     try:
