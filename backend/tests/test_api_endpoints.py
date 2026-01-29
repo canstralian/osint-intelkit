@@ -1,12 +1,21 @@
-"""Tests for FastAPI endpoints."""
+"""Integration tests for FastAPI endpoints.
+
+These tests interact with actual services and are marked as integration tests.
+They may use weak assertions (e.g., `status_code in [200, 500]`) because
+external dependencies like databases may not be available in all test environments.
+
+For precise unit tests with mocked dependencies and specific assertions,
+see test_api_endpoints_unit.py.
+"""
 
 import pytest
 from httpx import AsyncClient
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestHealthEndpoints:
-    """Test health check and status endpoints."""
+    """Integration tests for health check and status endpoints."""
 
     async def test_root_endpoint(self, async_client: AsyncClient):
         """Test root endpoint returns API status."""
@@ -27,15 +36,19 @@ class TestHealthEndpoints:
         assert data["status"] == "healthy"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestTaskEndpoints:
-    """Test task orchestration endpoints."""
+    """Integration tests for task orchestration endpoints."""
 
     async def test_collect_endpoint_structure(self, async_client: AsyncClient):
-        """Test collect endpoint accepts valid requests."""
+        """Test collect endpoint accepts valid requests (integration test).
+        
+        Note: May return 500 if database is unavailable. See test_api_endpoints_unit.py
+        for precise unit tests with mocked dependencies.
+        """
         request_data = {"domain": "example.com", "source": "manual", "enrich": False}
         response = await async_client.post("/tasks/collect", json=request_data)
-        # May fail due to DB connection in test, but structure should be valid
         assert response.status_code in [200, 500]
 
     async def test_collect_invalid_domain(self, async_client: AsyncClient):
@@ -45,34 +58,48 @@ class TestTaskEndpoints:
         assert response.status_code == 422  # Validation error
 
     async def test_enrich_endpoint_structure(self, async_client: AsyncClient):
-        """Test enrich endpoint accepts valid requests."""
+        """Test enrich endpoint accepts valid requests (integration test).
+        
+        Note: May return 500 if external services are unavailable.
+        """
         request_data = {"domain": "example.com", "sources": ["virustotal"]}
         response = await async_client.post("/tasks/enrich", json=request_data)
         assert response.status_code in [200, 500]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDomainEndpoints:
-    """Test domain data retrieval endpoints."""
+    """Integration tests for domain data retrieval endpoints."""
 
     async def test_get_enrichments_endpoint(self, async_client: AsyncClient):
-        """Test domain enrichments endpoint."""
+        """Test domain enrichments endpoint (integration test).
+        
+        Note: Response depends on database state. May return 404 if domain not found,
+        or 500 if database is unavailable.
+        """
         response = await async_client.get("/domains/example.com/enrichments")
-        # May return empty or error depending on DB state
         assert response.status_code in [200, 404, 500]
 
     async def test_get_summary_endpoint(self, async_client: AsyncClient):
-        """Test domain summary endpoint."""
+        """Test domain summary endpoint (integration test).
+        
+        Note: Response depends on database state.
+        """
         response = await async_client.get("/domains/example.com/summary")
         assert response.status_code in [200, 404, 500]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestGraphEndpoints:
-    """Test graph query endpoints."""
+    """Integration tests for graph query endpoints."""
 
     async def test_get_graph_endpoint(self, async_client: AsyncClient):
-        """Test graph retrieval endpoint."""
+        """Test graph retrieval endpoint (integration test).
+        
+        Note: Response depends on Neo4j database state.
+        """
         response = await async_client.get("/graph/example.com?depth=2")
         assert response.status_code in [200, 404, 500]
 
@@ -82,6 +109,9 @@ class TestGraphEndpoints:
         assert response.status_code == 422  # Validation error (max depth = 5)
 
     async def test_find_related_endpoint(self, async_client: AsyncClient):
-        """Test related domains endpoint."""
+        """Test related domains endpoint (integration test).
+        
+        Note: Response depends on Neo4j database state.
+        """
         response = await async_client.get("/graph/example.com/related?min_connections=2")
         assert response.status_code in [200, 404, 500]
