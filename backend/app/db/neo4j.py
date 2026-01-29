@@ -266,6 +266,7 @@ async def get_graph_statistics() -> Dict[str, int]:
         }
 
         # Query each label separately to avoid counting nodes with multiple labels multiple times
+        # Using UNION ALL to combine multiple label queries into a single database query
         label_mapping = {
             "Domain": "total_domains",
             "IP": "total_ips",
@@ -274,12 +275,25 @@ async def get_graph_statistics() -> Dict[str, int]:
             "ThreatTag": "total_threat_tags"
         }
 
-        # Query each label separately
-        for label, stat_key in label_mapping.items():
-            result = session.run(f"MATCH (n:{label}) RETURN count(n) as count")
-            record = result.single()
-            if record:
-                stats[stat_key] = record["count"]
+        # Build a single query with UNION ALL for all labels
+        query = """
+            MATCH (n:Domain) RETURN 'Domain' as label, count(n) as count
+            UNION ALL
+            MATCH (n:IP) RETURN 'IP' as label, count(n) as count
+            UNION ALL
+            MATCH (n:Certificate) RETURN 'Certificate' as label, count(n) as count
+            UNION ALL
+            MATCH (n:Organization) RETURN 'Organization' as label, count(n) as count
+            UNION ALL
+            MATCH (n:ThreatTag) RETURN 'ThreatTag' as label, count(n) as count
+        """
+        
+        result = session.run(query)
+        for record in result:
+            label = record["label"]
+            count = record["count"]
+            if label in label_mapping:
+                stats[label_mapping[label]] = count
 
         # Query for total relationship count
         rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as total")
