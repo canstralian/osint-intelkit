@@ -83,8 +83,5 @@ class TestVTEnricher:
         mock_session_instance.get.return_value.__aenter__.return_value = mock_response
         mock_session.return_value = mock_session_instance
 
-        try:
-            await vt_enrich_domain(sample_domain)
-        except Exception:
-            # Expected - error handling test
-            pass
+        result = await vt_enrich_domain(sample_domain)
+        assert result is None  # Should return None on API error
