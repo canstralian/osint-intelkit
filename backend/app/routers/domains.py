@@ -104,8 +104,8 @@ async def get_domain_summary(domain: str):
             sources[source]["latest_data"] = enrichment["data"]
 
             # Track latest enrichment overall
-            if not latest_timestamp or enrichment["timestamp"] > latest_timestamp:
-                latest_timestamp = enrichment["timestamp"]
+            if not latest_timestamp or enrichment["created_at"] > latest_timestamp:
+                latest_timestamp = enrichment["created_at"]
                 summary["latest_enrichment"] = enrichment
 
         summary["enrichment_sources"] = list(sources.values())
