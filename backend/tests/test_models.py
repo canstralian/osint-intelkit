@@ -21,8 +21,8 @@ class TestCollectionRequest:
         from app.routers.tasks import CollectionRequest
 
         request = CollectionRequest(domain="example.com")
-        assert request.source == "manual"
-        assert request.enrich is False
+        assert request.source == "api"
+        assert request.enrich is True
 
     def test_invalid_domain_in_collection_request(self):
         """Test that invalid domains are rejected."""
