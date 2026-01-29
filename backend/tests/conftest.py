@@ -1,7 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
 import os
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator
 
 import pytest
 from httpx import AsyncClient
