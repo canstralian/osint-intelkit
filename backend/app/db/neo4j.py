@@ -265,9 +265,10 @@ async def get_graph_statistics() -> Dict[str, int]:
             "total_threat_tags": 0
         }
 
-        # Query each label separately using UNION ALL
-        # Each MATCH (n:Label) clause only matches nodes with that specific label,
-        # ensuring accurate per-label counts in a single database round-trip
+        # Query specific labels using UNION ALL for better performance
+        # Individual MATCH (n:Label) clauses leverage label-specific indexes
+        # rather than scanning all nodes, improving query performance
+        # NOTE: label_mapping is predefined; no user inputs are included to prevent injection risks
         label_mapping = {
             "Domain": "total_domains",
             "IP": "total_ips",
@@ -277,8 +278,9 @@ async def get_graph_statistics() -> Dict[str, int]:
         }
 
         # Build a single query with UNION ALL for all labels dynamically
+        # Use backticks around labels to handle special characters safely
         label_queries = [
-            f"MATCH (n:{label}) RETURN '{label}' as label, count(n) as count"
+            f"MATCH (n:`{label}`) RETURN '{label}' as label, count(n) as count"
             for label in label_mapping.keys()
         ]
         query = "\nUNION ALL\n".join(label_queries)
