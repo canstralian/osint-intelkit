@@ -282,7 +282,6 @@ async def get_graph_statistics() -> Dict[str, int]:
             for label in label_mapping.keys()
         ]
         query = "\nUNION ALL\n".join(label_queries)
-        
         result = session.run(query)
         for record in result:
             label = record["label"]
