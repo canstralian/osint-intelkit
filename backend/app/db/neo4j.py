@@ -256,15 +256,6 @@ async def get_graph_statistics() -> Dict[str, int]:
     """
     driver = get_driver()
     with driver.session() as session:
-        # Query for node counts by label
-        result = session.run(
-            """
-            MATCH (n)
-            UNWIND labels(n) as label
-            RETURN label, count(DISTINCT n) as count
-            """
-        )
-
         # Initialize counters
         stats = {
             "total_domains": 0,
@@ -274,7 +265,10 @@ async def get_graph_statistics() -> Dict[str, int]:
             "total_threat_tags": 0
         }
 
-        # Map label names to stat keys
+        # Query specific labels using UNION ALL for better performance
+        # Individual MATCH (n:Label) clauses leverage label-specific indexes
+        # rather than scanning all nodes, improving query performance
+        # NOTE: label_mapping is predefined; no user inputs are included to prevent injection risks
         label_mapping = {
             "Domain": "total_domains",
             "IP": "total_ips",
@@ -283,7 +277,14 @@ async def get_graph_statistics() -> Dict[str, int]:
             "ThreatTag": "total_threat_tags"
         }
 
-        # Populate node counts
+        # Build a single query with UNION ALL for all labels dynamically
+        # Use backticks around labels to handle special characters safely
+        label_queries = [
+            f"MATCH (n:`{label}`) RETURN '{label}' as label, count(n) as count"
+            for label in label_mapping.keys()
+        ]
+        query = "\nUNION ALL\n".join(label_queries)
+        result = session.run(query)
         for record in result:
             label = record["label"]
             count = record["count"]
